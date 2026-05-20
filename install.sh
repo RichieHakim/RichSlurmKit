@@ -116,4 +116,9 @@ Next steps:
 
 If you previously had aliases or scripts in ~/.bashrc that overlap with
 RichSlurmKit (sq, njobs, v, p, etc.), remove them so RichSlurmKit wins on PATH.
+
+If you have running 'jupyter-tunnel' jobs from a pre-RichSlurmKit p script,
+their logs don't carry the RSK_JOB_* lines, so the new pp won't be able to
+reconnect to them. Either finish them with the old ssh -L command, or
+re-submit via p.
 EOF

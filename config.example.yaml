@@ -27,6 +27,10 @@ interactive:
 # (i.e. bare `v` == `v 1`). Pass `v 2` etc. to use other presets.
 # Override individual fields with --account, --partition, --gres,
 # --cores, --mem, --time, --env.
+#
+# NOTE: always quote HH:MM:SS / D-HH:MM:SS time values. Unquoted, YAML
+# parses `48:00:00` as the integer 172800 (sexagesimal). Same for any
+# value containing a colon you want kept as a string.
 presets:
   - name: kempner_h100
     account: kempner_YOUR_LAB
