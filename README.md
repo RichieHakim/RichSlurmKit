@@ -24,7 +24,7 @@ To uninstall: `./uninstall.sh` (use `--purge` to also drop the config).
 |---|---|
 | `v` | Launch a VS Code Remote Tunnel + Jupyter on a compute node. Can use `v [N]` to specify preset number |
 | `vclean` | Delete stale VS Code tunnel registrations from your account |
-| `p [N]` | Launch a Jupyter session + open an SSH tunnel to it (preset N) |
+| `p` | Launch a Jupyter session + open an SSH tunnel to it. Can use `p [N]` to specify preset number |
 | `pp` | Reconnect SSH tunnel to your running `p` job. Auto-picks if there's exactly one; prompts if there are multiple. Pass a job id (`pp 12345`) to target a specific one. |
 | `interactive` | Drop into an `srun` shell using the `interactive:` block in `config.yaml` |
 | `q [SECS]` | Watch `sacct` for your running/pending jobs |
