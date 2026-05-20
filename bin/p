@@ -1,0 +1,81 @@
+#!/bin/bash
+# Submit persistent_ssh.job to SLURM, wait for the node to come up, then start
+# an ssh tunnel to its Jupyter port. Random token + port per job, scraped
+# from the slurm log.
+set -euo pipefail
+
+if [[ -z "${RSK_ROOT:-}" ]]; then
+    RSK_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+fi
+source "$RSK_ROOT/lib/config.sh"
+source "$RSK_ROOT/lib/render_job.sh"
+
+RSK_CMD_NAME="p"
+rsk_parse_args "$@" || { rsk_print_job_usage >&2; exit 2; }
+
+if [[ $RSK_HELP -eq 1 ]]; then rsk_print_job_usage; exit 0; fi
+if [[ $RSK_LIST -eq 1 ]]; then rsk_list_presets; exit 0; fi
+
+rsk_resolve_job_vars
+
+cd "$RSK_STATE_DIR"
+
+# Prune stale jupyter-tunnel logs whose jobs are no longer running.
+echo "=== Cleaning up stale jupyter-tunnel logs (keeping active jobs) ==="
+shopt -s nullglob
+active_ids=$(squeue -h -u "$USER" -o '%A' 2>/dev/null | tr '\n' '|' | sed 's/|$//')
+removed=0
+kept=0
+for f in jupyter-tunnel_*.out; do
+    id=$(echo "$f" | sed -nE 's/^jupyter-tunnel_([0-9]+)\.out$/\1/p')
+    if [[ -n "$id" && -n "$active_ids" && "$id" =~ ^($active_ids)$ ]]; then
+        kept=$((kept + 1))
+    else
+        rm -f "$f"
+        removed=$((removed + 1))
+    fi
+done
+echo "Removed ${removed} stale log(s); kept ${kept} active."
+
+# Render template.
+rendered=$(mktemp /tmp/rsk-persistent-XXXXXX.job)
+trap 'rm -f "$rendered"' EXIT
+rsk_render_template "$RSK_ROOT/jobs/persistent_ssh.job.tpl" "$rendered"
+
+echo "=== Submitting job (preset: ${RSK_JOB_NAME}, account: ${RSK_JOB_ACCOUNT}, partition: ${RSK_JOB_PARTITION}) ==="
+job_id=$(sbatch "$rendered" | awk '{print $4}')
+echo "Submitted job ${job_id}"
+
+if [[ $RSK_KEEP_RENDERED -eq 1 ]]; then
+    cp "$rendered" "$RSK_STATE_DIR/persistent-${job_id}.job"
+    echo "Kept rendered job at $RSK_STATE_DIR/persistent-${job_id}.job"
+fi
+
+log_file="jupyter-tunnel_${job_id}.out"
+echo "Waiting for log file: ${log_file}"
+while [[ ! -f "$log_file" ]]; do
+    state=$(sacct -j "$job_id" --format=State --noheader 2>/dev/null | awk 'NR==1 {print $1}')
+    printf "\rJob %s state: %-12s (waiting for log file...)" "$job_id" "${state:-unknown}"
+    sleep 1
+done
+echo -e "\nLog file detected: ${log_file}"
+
+# Wait for the job to write its node/port/token.
+echo "Waiting for node, port, and token..."
+node="" ; port="" ; token=""
+while [[ -z "$node" || -z "$port" || -z "$token" ]]; do
+    node=$(grep "^RSK_JOB_NODE:" "$log_file" 2>/dev/null | awk '{print $2}' | head -1)
+    port=$(grep "^RSK_JOB_PORT:" "$log_file" 2>/dev/null | awk '{print $2}' | head -1)
+    token=$(grep "^RSK_JOB_TOKEN:" "$log_file" 2>/dev/null | awk '{print $2}' | head -1)
+    [[ -z "$node" || -z "$port" || -z "$token" ]] && sleep 1
+done
+
+echo "------------------------------------------------------------------"
+echo "Node:       ${node}"
+echo "Port:       ${port}"
+echo "Jupyter:    http://127.0.0.1:${port}/lab?token=${token}"
+echo "------------------------------------------------------------------"
+echo "Starting SSH tunnel (Ctrl-C to stop; job keeps running)..."
+
+exec ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -N -L "${port}:localhost:${port}" "$node"

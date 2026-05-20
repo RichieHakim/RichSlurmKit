@@ -1,0 +1,87 @@
+#!/bin/bash
+# Reconnect SSH tunnel to an existing `p` session.
+# Usage: pp [job_id]   (auto-detects if exactly one jupyter-tunnel job is running)
+set -euo pipefail
+
+if [[ -z "${RSK_ROOT:-}" ]]; then
+    RSK_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+fi
+source "$RSK_ROOT/lib/config.sh"
+
+cd "$RSK_STATE_DIR"
+
+find_jupyter_jobs() {
+    squeue --me --name=jupyter-tunnel --noheader --format="%i %M %N" 2>/dev/null
+}
+
+if [[ $# -ge 1 ]]; then
+    job_id="$1"
+else
+    jobs_output=$(find_jupyter_jobs)
+    if [[ -z "$jobs_output" ]]; then
+        echo "No running jupyter-tunnel jobs found." >&2
+        echo "To start a new session, run: p" >&2
+        exit 1
+    fi
+    job_count=$(echo "$jobs_output" | wc -l)
+    if [[ $job_count -eq 1 ]]; then
+        job_id=$(echo "$jobs_output" | awk '{print $1}')
+        runtime=$(echo "$jobs_output" | awk '{print $2}')
+        node=$(echo "$jobs_output" | awk '{print $3}')
+        echo "Found running job: ${job_id} (runtime: ${runtime}, node: ${node})"
+    else
+        echo "Multiple jupyter-tunnel jobs found:"
+        echo ""
+        printf "  %-12s  %-10s  %s\n" "JOB_ID" "RUNTIME" "NODE"
+        printf "  %-12s  %-10s  %s\n" "------" "-------" "----"
+        echo "$jobs_output" | awk '{printf "  %-12s  %-10s  %s\n", $1, $2, $3}'
+        echo ""
+        read -p "Enter job ID to connect to: " job_id
+    fi
+fi
+
+if [[ -z "$job_id" ]]; then
+    echo "No job ID specified." >&2
+    exit 1
+fi
+
+job_state=$(squeue --job="$job_id" --noheader --format="%T" 2>/dev/null || echo "")
+if [[ -z "$job_state" ]]; then
+    echo "Job ${job_id} is not running (or doesn't exist)." >&2
+    exit 1
+fi
+echo "Job ${job_id} state: ${job_state}"
+
+log_file="jupyter-tunnel_${job_id}.out"
+if [[ ! -f "$log_file" ]]; then
+    echo "Log file ${log_file} not found in $RSK_STATE_DIR." >&2
+    exit 1
+fi
+
+node=$(grep "^RSK_JOB_NODE:" "$log_file" 2>/dev/null | awk '{print $2}' | head -1)
+port=$(grep "^RSK_JOB_PORT:" "$log_file" 2>/dev/null | awk '{print $2}' | head -1)
+token=$(grep "^RSK_JOB_TOKEN:" "$log_file" 2>/dev/null | awk '{print $2}' | head -1)
+
+if [[ -z "$node" ]]; then
+    node=$(squeue --job="$job_id" --noheader --format="%N" 2>/dev/null | head -1)
+fi
+if [[ -z "$node" || -z "$port" || -z "$token" ]]; then
+    echo "Could not parse node/port/token from ${log_file}." >&2
+    echo "(Job may be too new -- wait a few seconds and retry.)" >&2
+    exit 1
+fi
+
+# Strip any cluster FQDN suffix.
+node="${node%%.*}"
+
+echo "------------------------------------------------------------------"
+echo "Reconnecting to existing Jupyter session"
+echo ""
+echo "Job ID:    ${job_id}"
+echo "Node:      ${node}"
+echo "Jupyter:   http://127.0.0.1:${port}/lab?token=${token}"
+echo "------------------------------------------------------------------"
+echo "Starting SSH tunnel (Ctrl-C to stop)..."
+
+exec ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -N -L "${port}:localhost:${port}" "$node"

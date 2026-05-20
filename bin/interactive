@@ -1,0 +1,20 @@
+#!/bin/bash
+# Drop into an interactive srun shell using the `interactive:` block in config.yaml.
+set -euo pipefail
+
+if [[ -z "${RSK_ROOT:-}" ]]; then
+    RSK_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+fi
+source "$RSK_ROOT/lib/config.sh"
+
+account="${RSK_INTERACTIVE_ACCOUNT:-}"
+partition="${RSK_INTERACTIVE_PARTITION:-shared}"
+cores="${RSK_INTERACTIVE_CORES:-2}"
+mem="${RSK_INTERACTIVE_MEM:-24G}"
+time="${RSK_INTERACTIVE_TIME:-48:00:00}"
+
+args=()
+[[ -n "$account" ]] && args+=(-A "$account")
+args+=(-p "$partition" -c "$cores" --mem "$mem" -t "$time" -N 1 --pty bash -l)
+
+exec srun "${args[@]}"

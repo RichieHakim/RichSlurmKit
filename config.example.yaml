@@ -1,0 +1,61 @@
+# RichSlurmKit configuration.
+# Edits to this file take effect on the next command — no rebuild needed.
+
+# Cluster login host (used in `p` for laptop ssh-tunnel instructions).
+login_host: login.rc.fas.harvard.edu
+
+# Path shortcuts used by the `lab` and `scratch` aliases.
+lab_path: ${HOME}
+scratch_path: ${HOME}
+
+# Default conda env activated inside jupyter/vscode jobs.
+# Override per-call with `v --env myenv`.
+conda_env: base
+
+# Account used by the `blame` alias (sshare).
+blame_account: ""
+
+# `interactive` command resource defaults (CPU srun).
+interactive:
+  account: ""
+  partition: shared
+  cores: 2
+  mem: 24G
+  time: "48:00:00"
+
+# Presets for `v` and `p`. First preset is the default
+# (i.e. bare `v` == `v 1`). Pass `v 2` etc. to use other presets.
+# Override individual fields with --account, --partition, --gres,
+# --cores, --mem, --time, --env.
+presets:
+  - name: kempner_h100
+    account: kempner_YOUR_LAB
+    partition: kempner_h100
+    gres: gpu:1
+    cores: 24
+    mem: 360G
+    time: "0-48:00:00"
+
+  - name: kempner_a100
+    account: kempner_YOUR_LAB
+    partition: kempner
+    gres: gpu:1
+    cores: 16
+    mem: 240G
+    time: "0-48:00:00"
+
+  - name: kempner_requeue_a100
+    account: kempner_YOUR_LAB
+    partition: kempner_requeue
+    gres: gpu:1
+    cores: 16
+    mem: 240G
+    time: "0-48:00:00"
+
+  - name: shared_cpu
+    account: YOUR_LAB
+    partition: shared
+    gres: ""
+    cores: 16
+    mem: 100G
+    time: "0-48:00:00"

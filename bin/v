@@ -1,0 +1,70 @@
+#!/bin/bash
+# Submit vscode.job to SLURM and live-tail its log.
+#
+# Multiple `v` jobs may run concurrently; each gets its own tmux session, port,
+# token, and VS Code CLI data dir. Stale log cleanup only touches logs whose
+# jobs are no longer in squeue, so concurrent jobs keep theirs.
+set -euo pipefail
+
+if [[ -z "${RSK_ROOT:-}" ]]; then
+    RSK_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+fi
+source "$RSK_ROOT/lib/config.sh"
+source "$RSK_ROOT/lib/render_job.sh"
+
+RSK_CMD_NAME="v"
+rsk_parse_args "$@" || { rsk_print_job_usage >&2; exit 2; }
+
+if [[ $RSK_HELP -eq 1 ]]; then rsk_print_job_usage; exit 0; fi
+if [[ $RSK_LIST -eq 1 ]]; then rsk_list_presets; exit 0; fi
+
+rsk_resolve_job_vars
+
+# Prune stale VS Code tunnel registrations (best-effort).
+"$RSK_ROOT/bin/vclean" --non-interactive --quiet \
+    || echo "Warning: stale VS Code tunnel cleanup skipped." >&2
+
+# Use a dedicated state dir for logs so they're easy to find and clean.
+cd "$RSK_STATE_DIR"
+
+echo "=== Cleaning up stale slurm logs (keeping active jobs) ==="
+shopt -s nullglob
+active_ids=$(squeue -h -u "$USER" -o '%A' 2>/dev/null | tr '\n' '|' | sed 's/|$//')
+removed=0
+kept=0
+for f in slurm-*.out; do
+    id=$(echo "$f" | sed -nE 's/^slurm-([0-9]+)\.out$/\1/p')
+    if [[ -n "$id" && -n "$active_ids" && "$id" =~ ^($active_ids)$ ]]; then
+        kept=$((kept + 1))
+    else
+        rm -f "$f"
+        removed=$((removed + 1))
+    fi
+done
+echo "Removed ${removed} stale log(s); kept ${kept} active."
+
+# Render template.
+rendered=$(mktemp /tmp/rsk-vscode-XXXXXX.job)
+trap 'rm -f "$rendered"' EXIT
+rsk_render_template "$RSK_ROOT/jobs/vscode.job.tpl" "$rendered"
+
+echo "=== Submitting job (preset: ${RSK_JOB_NAME}, account: ${RSK_JOB_ACCOUNT}, partition: ${RSK_JOB_PARTITION}) ==="
+job_id=$(sbatch "$rendered" | awk '{print $4}')
+echo "Submitted job ${job_id}"
+
+if [[ $RSK_KEEP_RENDERED -eq 1 ]]; then
+    cp "$rendered" "$RSK_STATE_DIR/vscode-${job_id}.job"
+    echo "Kept rendered job at $RSK_STATE_DIR/vscode-${job_id}.job"
+fi
+
+log_file="slurm-${job_id}.out"
+echo "Waiting for log file: ${log_file}"
+while [[ ! -f "$log_file" ]]; do
+    state=$(sacct -j "$job_id" --format=State --noheader 2>/dev/null | awk 'NR==1 {print $1}')
+    printf "\rJob %s state: %-12s (waiting for log file...)" "$job_id" "${state:-unknown}"
+    sleep 1
+done
+echo -e "\nLog file detected: ${log_file}"
+
+echo "=== Live tail (Ctrl-C to stop watching; job keeps running) ==="
+exec watch -n 1 "tail -n 30 ${log_file}"

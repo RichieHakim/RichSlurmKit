@@ -1,0 +1,153 @@
+#!/bin/bash
+# Remove stale VS Code Remote Tunnel registrations created by `v` jobs.
+# Uses the `devtunnel` CLI because `code tunnel unregister` only handles the
+# local CLI dir, which is gone once SLURM hard-kills a job.
+set -euo pipefail
+
+if [[ -z "${RSK_ROOT:-}" ]]; then
+    RSK_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+fi
+source "$RSK_ROOT/lib/config.sh"
+source "$RSK_ROOT/lib/devtunnel_install.sh"
+
+non_interactive=0
+quiet=0
+
+usage() {
+    cat <<EOF
+Usage: vclean [--non-interactive] [--quiet]
+
+Delete inactive VS Code tunnels created by RichSlurmKit's vscode.job
+(names matching tunnel-<jobid>).
+
+Options:
+  --non-interactive  Skip cleanup instead of prompting for devtunnel login.
+  --quiet            Suppress normal progress output.
+EOF
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        --non-interactive) non_interactive=1 ;;
+        --quiet)           quiet=1 ;;
+        -h|--help)         usage; exit 0 ;;
+        *) echo "Unknown argument: ${arg}" >&2; usage >&2; exit 2 ;;
+    esac
+done
+
+say() { [[ $quiet -eq 0 ]] && echo "$@" || true; }
+
+rsk_install_devtunnel || exit 1
+devtunnel_bin="$RSK_DEVTUNNEL_BIN"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+list_json="${tmpdir}/tunnels.json"
+list_err="${tmpdir}/list.err"
+
+if ! "$devtunnel_bin" list --limit 100 -j >"$list_json" 2>"$list_err"; then
+    if grep -qi "Login required" "$list_json" "$list_err"; then
+        if [[ $non_interactive -eq 1 ]]; then
+            say "Skipping tunnel cleanup: devtunnel login required."
+            exit 0
+        fi
+        echo "devtunnel login required for account-level tunnel cleanup."
+        echo "Use the GitHub device-code prompt below, then cleanup will continue."
+        "$devtunnel_bin" user login -g -d
+        "$devtunnel_bin" list --limit 100 -j >"$list_json"
+    else
+        cat "$list_err" >&2
+        exit 1
+    fi
+fi
+
+active_jobs="${tmpdir}/active_jobs.txt"
+squeue -h -u "$USER" -o '%A' >"$active_jobs" 2>/dev/null || : >"$active_jobs"
+
+delete_list="${tmpdir}/delete.tsv"
+python - "$list_json" "$active_jobs" >"$delete_list" <<'PY'
+import json
+import re
+import sys
+
+list_json, active_jobs_path = sys.argv[1], sys.argv[2]
+
+with open(list_json, "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+with open(active_jobs_path, "r", encoding="utf-8") as f:
+    active_jobs = {line.strip() for line in f if line.strip()}
+
+name_re = re.compile(r"^tunnel-([0-9]+)$")
+
+
+def walk_tunnels(value):
+    if isinstance(value, dict):
+        if "tunnelId" in value or "name" in value:
+            yield value
+        for child in value.values():
+            yield from walk_tunnels(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from walk_tunnels(child)
+
+
+def current_count(value):
+    if isinstance(value, dict):
+        value = value.get("current", 0)
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+seen = set()
+for tunnel in walk_tunnels(data):
+    tunnel_id = str(tunnel.get("tunnelId") or "").strip()
+    name = str(tunnel.get("name") or "").strip()
+    labels = [str(l).strip() for l in tunnel.get("labels", []) if str(l).strip()]
+
+    match = None
+    visible_name = name or "-"
+    for candidate in [name, tunnel_id, *labels]:
+        match = name_re.match(candidate)
+        if match:
+            visible_name = candidate
+            break
+    if not match:
+        continue
+
+    job_id = match.group(1)
+    status = tunnel.get("status") or {}
+    host_count = max(
+        current_count(status.get("hostConnectionCount")),
+        current_count(tunnel.get("hostConnectionCount")),
+        current_count(tunnel.get("hostConnections")),
+    )
+    endpoints = tunnel.get("endpoints") or []
+
+    if host_count > 0 or endpoints or job_id in active_jobs:
+        continue
+
+    delete_id = tunnel_id or name
+    if not delete_id or delete_id in seen:
+        continue
+
+    seen.add(delete_id)
+    print(f"{delete_id}\t{visible_name}\t{job_id}")
+PY
+
+if [[ ! -s "$delete_list" ]]; then
+    say "No stale VS Code job tunnels found."
+    exit 0
+fi
+
+removed=0
+while IFS=$'\t' read -r tunnel_id tunnel_name job_id; do
+    say "Deleting stale tunnel ${tunnel_name} (${tunnel_id}, SLURM job ${job_id})"
+    "$devtunnel_bin" delete "$tunnel_id" --force >/dev/null
+    removed=$((removed + 1))
+done <"$delete_list"
+
+say "Removed ${removed} stale tunnel(s)."

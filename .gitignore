@@ -1,0 +1,11 @@
+# Personal config (created by install.sh; one per machine)
+/config.yaml
+
+# Slurm artifacts that occasionally land here during development
+/slurm-*.out
+/jupyter-tunnel_*.out
+/jupyter_lab_*.log
+
+# Editor noise
+.DS_Store
+*.swp
