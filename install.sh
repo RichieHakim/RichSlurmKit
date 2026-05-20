@@ -65,11 +65,8 @@ prompt() {
     printf '%s' "${val:-$default}"
 }
 
-login_host=$(prompt "Login host"             "login.rc.fas.harvard.edu")
-lab_path=$(prompt "Lab dir (for \`lab\`)"    "$HOME")
-scratch_path=$(prompt "Scratch dir (for \`scratch\`)" "$HOME")
-conda_env=$(prompt "Default conda env"        "base")
-blame_account=$(prompt "Account for \`blame\`" "")
+login_host=$(prompt "Login host"        "login.rc.fas.harvard.edu")
+conda_env=$(prompt "Default conda env"  "base")
 
 # In-place sed replacement of top-level scalars (preserves comments).
 sed_set() {
@@ -79,11 +76,8 @@ sed_set() {
     sed -i -E "s#^(${key}:)[[:space:]].*#\1 ${esc}#" "$RSK_CONFIG"
 }
 
-sed_set login_host    "$login_host"
-sed_set lab_path      "$lab_path"
-sed_set scratch_path  "$scratch_path"
-sed_set conda_env     "$conda_env"
-sed_set blame_account "\"$blame_account\""
+sed_set login_host "$login_host"
+sed_set conda_env  "$conda_env"
 
 green "Wrote $RSK_CONFIG"
 
@@ -115,7 +109,7 @@ Next steps:
   4.  Try:  v --list   then   v   to submit your first job.
 
 If you previously had aliases or scripts in ~/.bashrc that overlap with
-RichSlurmKit (sq, njobs, v, p, etc.), remove them so RichSlurmKit wins on PATH.
+RichSlurmKit (v, p, pp, vclean, etc.), remove them so RichSlurmKit wins on PATH.
 
 If you have running 'jupyter-tunnel' jobs from a pre-RichSlurmKit p script,
 their logs don't carry the RSK_JOB_* lines, so the new pp won't be able to

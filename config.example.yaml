@@ -4,16 +4,9 @@
 # Cluster login host (used in `p` for laptop ssh-tunnel instructions).
 login_host: login.rc.fas.harvard.edu
 
-# Path shortcuts used by the `lab` and `scratch` aliases.
-lab_path: ${HOME}
-scratch_path: ${HOME}
-
 # Default conda env activated inside jupyter/vscode jobs.
 # Override per-call with `v --env myenv`.
 conda_env: base
-
-# Account used by the `blame` alias (sshare).
-blame_account: ""
 
 # `interactive` command resource defaults (CPU srun).
 interactive:

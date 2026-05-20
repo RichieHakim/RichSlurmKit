@@ -22,18 +22,15 @@ To uninstall: `./uninstall.sh` (use `--purge` to also drop the config).
 
 | cmd | what it does |
 |---|---|
-| `v [N]` | Launch a VS Code Remote Tunnel + Jupyter on a compute node (preset N, default 1) |
+| `v` | Launch a VS Code Remote Tunnel + Jupyter on a compute node. Can use `v [N]` to specify preset number |
 | `vclean` | Delete stale VS Code tunnel registrations from your account |
 | `p [N]` | Launch a Jupyter session + open an SSH tunnel to it (preset N) |
-| `pp [JOB]` | Reconnect SSH tunnel to a running `p` job |
+| `pp` | Reconnect SSH tunnel to your running `p` job. Auto-picks if there's exactly one; prompts if there are multiple. Pass a job id (`pp 12345`) to target a specific one. |
 | `interactive` | Drop into an `srun` shell using the `interactive:` block in `config.yaml` |
 | `q [SECS]` | Watch `sacct` for your running/pending jobs |
 | `s` | `sshare` for your user |
 | `n` | `watch nvidia-smi` |
 | `c` / `cr` | `claude --dangerously-skip-permissions` (resume with `cr`) |
-| `lab` / `scratch` | `cd` to `lab_path` / `scratch_path` from config |
-| `blame` | `sshare --account=<blame_account>` |
-| `sq`, `njobs`, `myjobs`, `interactive_cpu`, `interactive_gpu` | Plain SLURM aliases |
 
 `v` and `p` share a CLI:
 
