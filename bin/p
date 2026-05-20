@@ -51,14 +51,19 @@ if [[ $RSK_KEEP_RENDERED -eq 1 ]]; then
     echo "Kept rendered job at $RSK_STATE_DIR/persistent-${job_id}.job"
 fi
 
-log_file="jupyter-tunnel_${job_id}.out"
-echo "Waiting for log file: ${log_file}"
+log_file="$RSK_STATE_DIR/jupyter-tunnel_${job_id}.out"
+echo
+echo "=================================================================="
+echo "  Log file: $log_file"
+echo "=================================================================="
+echo
+
 while [[ ! -f "$log_file" ]]; do
     state=$(sacct -j "$job_id" --format=State --noheader 2>/dev/null | awk 'NR==1 {print $1}')
     printf "\rJob %s state: %-12s (waiting for log file...)" "$job_id" "${state:-unknown}"
     sleep 1
 done
-echo -e "\nLog file detected: ${log_file}"
+echo -e "\nLog file ready."
 
 # Wait for the job to write its node/port/token.
 echo "Waiting for node, port, and token..."

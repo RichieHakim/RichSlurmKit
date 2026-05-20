@@ -1,9 +1,9 @@
 #!/bin/bash
-# RichSlurmKit installer.
-# - Verifies conda is on PATH
-# - Ensures PyYAML is importable (installs to --user if not)
-# - Walks through a short config setup, writes ./config.yaml
-# - Adds a sentinel-wrapped `source` line to ~/.bashrc
+# RichSlurmKit installer. Non-interactive on a clean install.
+# - Verifies conda, envsubst, PyYAML
+# - Creates config.yaml from config.example.yaml if missing
+# - Auto-detects login_host (best-effort) and writes it to config.yaml
+# - Adds a marker block to ~/.bashrc that sources shell/shellrc.sh
 set -euo pipefail
 
 RSK_ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
@@ -14,99 +14,67 @@ green() { printf '\033[32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 red() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 
-green "=== RichSlurmKit installer ==="
-echo "Repo:   $RSK_ROOT"
-echo
-
-# 1. conda check
-if ! command -v conda &>/dev/null; then
-    red "Error: 'conda' is not on your PATH."
-    red "RichSlurmKit uses conda to activate environments inside SLURM jobs."
-    red "Install miniconda from https://docs.conda.io/projects/miniconda/en/latest/"
-    red "and re-run this script."
-    exit 1
-fi
-green "Found conda: $(command -v conda)"
-
-# 2. envsubst check
-if ! command -v envsubst &>/dev/null; then
-    red "Error: 'envsubst' is not on your PATH (provided by gettext)."
-    red "On HPC clusters this is almost always present; ask sysadmin if not."
-    exit 1
-fi
-
-# 3. PyYAML
-python_bin="$(command -v python3 || command -v python)"
-if ! "$python_bin" -c 'import yaml' &>/dev/null; then
-    yellow "PyYAML not found; installing to --user site-packages..."
-    "$python_bin" -m pip install --user pyyaml
-fi
-green "PyYAML OK"
-
-# 4. config.yaml
-if [[ -f "$RSK_CONFIG" ]]; then
-    read -r -p "config.yaml already exists. Overwrite from example? [y/N] " ans
-    if [[ "${ans,,}" == "y" || "${ans,,}" == "yes" ]]; then
-        cp "$RSK_EXAMPLE" "$RSK_CONFIG"
-        yellow "Reset config.yaml from example."
-    else
-        echo "Keeping existing config.yaml."
-    fi
-else
-    cp "$RSK_EXAMPLE" "$RSK_CONFIG"
-fi
-
-echo
-
-# Pull current defaults from the just-prepared config.yaml so config is the
-# single source of truth -- editing config.example.yaml propagates here.
-eval "$("$python_bin" "$RSK_ROOT/lib/load_config.py" "$RSK_CONFIG")"
-
-# Auto-detect login host: assume the installer is being run on a login node
-# of the target cluster, so `hostname -f` is the externally-reachable hostname.
-# Only used by `p` to print an ssh-tunnel one-liner for off-cluster connections.
-login_host="${RSK_LOGIN_HOST:-}"
-if [[ -z "$login_host" ]]; then
-    login_host=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "")
-    green "Auto-detected login host: ${login_host:-<none>}"
-    echo "  (Override later by editing 'login_host' in $RSK_CONFIG.)"
-    echo
-fi
-
-prompt() {
-    local label="$1" help="$2" default="$3" val
-    # Label/help go to stderr so $(prompt ...) only captures the final value.
-    printf '  %s\n    %s\n' "$label" "$help" >&2
-    read -r -p "    [${default}]: " val
-    printf '%s' "${val:-$default}"
-}
-
-conda_env=$(prompt \
-    "Default conda env" \
-    "Conda env activated inside SLURM jobs. Override per-call with 'v --env name'." \
-    "${RSK_CONDA_ENV:-base}")
-
 # In-place sed replacement of top-level scalars (preserves comments).
 sed_set() {
     local key="$1" value="$2"
-    # Escape any & and # in value for sed.
     local esc; esc=$(printf '%s' "$value" | sed -e 's/[&#]/\\&/g')
     sed -i -E "s#^(${key}:)[[:space:]].*#\1 ${esc}#" "$RSK_CONFIG"
 }
 
-sed_set login_host "$login_host"
-sed_set conda_env  "$conda_env"
+green "=== RichSlurmKit installer ==="
+echo "Repo: $RSK_ROOT"
+echo
 
-green "Wrote $RSK_CONFIG"
+# 1. Tool checks
+if ! command -v conda &>/dev/null; then
+    red "Error: 'conda' is not on your PATH."
+    red "Install miniconda from https://docs.conda.io/projects/miniconda/en/latest/ and re-run."
+    exit 1
+fi
+if ! command -v envsubst &>/dev/null; then
+    red "Error: 'envsubst' is not on your PATH (it ships with the gettext package)."
+    red "Install with: apt-get install gettext  /  brew install gettext  /  module load gettext"
+    exit 1
+fi
+python_bin="$(command -v python3 || command -v python)"
+if ! "$python_bin" -c 'import yaml' &>/dev/null; then
+    yellow "Installing PyYAML (to your user pip site-packages, no admin needed)..."
+    "$python_bin" -m pip install --user pyyaml >/dev/null 2>&1
+fi
+green "Dependencies OK (conda, envsubst, PyYAML)"
 
-# 5. ~/.bashrc sentinel block
+# 2. config.yaml
+config_was_new=0
+if [[ -f "$RSK_CONFIG" ]]; then
+    green "Found existing config: $RSK_CONFIG (leaving as-is)"
+else
+    cp "$RSK_EXAMPLE" "$RSK_CONFIG"
+    green "Created config: $RSK_CONFIG"
+    config_was_new=1
+fi
+
+# 3. Best-effort login_host fill (only if blank)
+eval "$("$python_bin" "$RSK_ROOT/lib/load_config.py" "$RSK_CONFIG")"
+if [[ -z "${RSK_LOGIN_HOST:-}" ]]; then
+    detected=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "")
+    if [[ -n "$detected" ]]; then
+        sed_set login_host "$detected"
+        yellow "Guessed login_host = $detected (from 'hostname -f')."
+        yellow "  WARN: many clusters use a load-balanced public alias that's"
+        yellow "        different from this specific login node's name."
+        yellow "        Fix in $RSK_CONFIG if 'p' should reach this cluster from"
+        yellow "        outside (e.g. 'login.<cluster>.edu' instead of 'login01...')."
+    fi
+fi
+
+# 4. ~/.bashrc marker block
 bashrc="$HOME/.bashrc"
 sentinel_start="# >>> RichSlurmKit >>>"
 sentinel_end="# <<< RichSlurmKit <<<"
 source_line="source \"$RSK_ROOT/shell/shellrc.sh\""
 
 if [[ -f "$bashrc" ]] && grep -qF "$sentinel_start" "$bashrc"; then
-    yellow "RichSlurmKit block already present in ~/.bashrc; not modifying."
+    green "~/.bashrc already wired up"
 else
     {
         echo ""
@@ -117,20 +85,46 @@ else
     green "Added source line to ~/.bashrc"
 fi
 
-cat <<EOF
+# 5. Detect whether config still has REPLACE-me placeholders; tailor the
+# closing message to whichever state the user is actually in.
+needs_edits=0
+if grep -qE 'YOUR_[A-Z_]+' "$RSK_CONFIG"; then
+    needs_edits=1
+fi
 
-=== Done ===
-Next steps:
-  1.  source ~/.bashrc
-  2.  Create your conda env if it doesn't exist: conda create -n ${conda_env} python=3.11 jupyterlab
-  3.  Edit ${RSK_CONFIG} to customize SLURM presets (accounts, partitions, etc.)
-  4.  Try:  v --list   then   v   to submit your first job.
+echo
+if [[ $needs_edits -eq 1 ]]; then
+    yellow "=== Required edits before 'v' or 'p' will work ==="
+    cat <<EOF
 
-If you previously had aliases or scripts in ~/.bashrc that overlap with
-RichSlurmKit (v, p, pp, vclean, etc.), remove them so RichSlurmKit wins on PATH.
+Open $RSK_CONFIG and replace every YOUR_* placeholder:
+  - YOUR_GPU_ACCOUNT, YOUR_CPU_ACCOUNT    (your SLURM account names)
+  - YOUR_H100_PARTITION, YOUR_A100_PARTITION, YOUR_PREEMPT_PARTITION
+                                          (your cluster's partition names)
+  - 'partition: shared' under 'interactive:' (rename if your cluster uses
+    a different name for the default CPU partition)
+  - 'conda_env: base' (change if your jupyter env has a different name)
 
-If you have running 'jupyter-tunnel' jobs from a pre-RichSlurmKit p script,
-their logs don't carry the RSK_JOB_* lines, so the new pp won't be able to
-reconnect to them. Either finish them with the old ssh -L command, or
-re-submit via p.
+To discover values on your cluster:
+  sshare -U \$USER             # accounts you can charge to
+  sinfo -s                      # partitions and node counts
+  scontrol show partition <p>   # per-partition limits (CPU / mem / time)
+
+Then:
+  source ~/.bashrc
+  v --list           # show your configured presets
+  v                  # submit using preset 1 (the first listed)
+
+Removing this kit later:  ./uninstall.sh   (--purge also drops config)
 EOF
+else
+    green "=== Looks customized; you should be good ==="
+    cat <<EOF
+
+  source ~/.bashrc   (if you haven't already, in this shell)
+  v --list           # confirm presets
+  v                  # submit using preset 1
+
+Removing this kit later:  ./uninstall.sh   (--purge also drops config)
+EOF
+fi

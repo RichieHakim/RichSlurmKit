@@ -1,60 +1,70 @@
 # RichSlurmKit configuration.
-# Edits to this file take effect on the next command — no rebuild needed.
+# Edits to this file take effect on the next command -- no rebuild needed.
+#
+# REQUIRED EDITS before `v` or `p` will work:
+#   - Replace every YOUR_* placeholder below (search for the string YOUR_).
+#   - Sanity-check `partition:` names, `gres:` strings, and resource limits;
+#     these vary by cluster.
+#
+# How to discover values for your cluster:
+#   sshare -U $USER              # accounts you can charge to
+#   sinfo -s                     # partitions + node counts
+#   sinfo -p <part> -o "%N %G"   # GRES strings available in a partition
+#   scontrol show partition <p>  # per-partition CPU / mem / time limits
 
 # Cluster login host: the externally-reachable hostname for SSHing into this
 # cluster from elsewhere. Used only by `p` to print the ssh-tunnel one-liner
-# for off-cluster connections. The installer auto-fills `hostname -f` on
-# first run; override here if your cluster uses a different public alias.
+# for off-cluster connections. The installer fills this with `hostname -f`
+# on first run; replace it here if your cluster uses a public alias like
+# `login.<cluster>.edu` instead of a specific login node's FQDN.
 login_host: ""
 
-# Default conda env activated inside jupyter/vscode jobs.
-# Override per-call with `v --env myenv`.
+# Conda env activated inside jupyter/vscode jobs. Make sure this env exists
+# (conda create -n <name> ...) before submitting. Override per call with
+# `v --env othername`.
 conda_env: base
 
-# `interactive` command resource defaults (CPU srun).
+# `interactive` command (CPU srun shell) defaults. If your cluster requires
+# `-A`, set `account:` here; otherwise leave blank.
 interactive:
   account: ""
-  partition: shared
+  partition: shared              # REPLACE: many clusters don't have a 'shared' partition
   cores: 2
   mem: 24G
-  time: "48:00:00"
+  time: "48:00:00"               # always quote HH:MM:SS (else YAML parses as sexagesimal)
 
 # Presets for `v` and `p`. First preset is the default
 # (i.e. bare `v` == `v 1`). Pass `v 2` etc. to use other presets.
-# Override individual fields with --account, --partition, --gres,
+# Override individual fields per call with --account, --partition, --gres,
 # --cores, --mem, --time, --env.
-#
-# NOTE: always quote HH:MM:SS / D-HH:MM:SS time values. Unquoted, YAML
-# parses `48:00:00` as the integer 172800 (sexagesimal). Same for any
-# value containing a colon you want kept as a string.
 presets:
   - name: gpu_h100
-    account: YOUR_GPU_ACCOUNT
-    partition: YOUR_H100_PARTITION
-    gres: gpu:1
+    account:   YOUR_GPU_ACCOUNT          # REPLACE
+    partition: YOUR_H100_PARTITION       # REPLACE (or remove this preset if no H100s)
+    gres: gpu:1                          # some clusters need 'gpu:h100:1' or similar
     cores: 24
     mem: 360G
     time: "0-48:00:00"
 
   - name: gpu_a100
-    account: YOUR_GPU_ACCOUNT
-    partition: YOUR_A100_PARTITION
+    account:   YOUR_GPU_ACCOUNT          # REPLACE
+    partition: YOUR_A100_PARTITION       # REPLACE
     gres: gpu:1
     cores: 16
     mem: 240G
     time: "0-48:00:00"
 
   - name: gpu_preempt
-    account: YOUR_GPU_ACCOUNT
-    partition: YOUR_PREEMPT_PARTITION
+    account:   YOUR_GPU_ACCOUNT          # REPLACE
+    partition: YOUR_PREEMPT_PARTITION    # REPLACE (or delete this preset)
     gres: gpu:1
     cores: 16
     mem: 240G
     time: "0-48:00:00"
 
   - name: shared_cpu
-    account: YOUR_CPU_ACCOUNT
-    partition: shared
+    account:   YOUR_CPU_ACCOUNT          # REPLACE
+    partition: shared                    # REPLACE if your cluster's CPU partition has a different name
     gres: ""
     cores: 16
     mem: 100G

@@ -57,14 +57,23 @@ if [[ $RSK_KEEP_RENDERED -eq 1 ]]; then
     echo "Kept rendered job at $RSK_STATE_DIR/vscode-${job_id}.job"
 fi
 
-log_file="slurm-${job_id}.out"
-echo "Waiting for log file: ${log_file}"
+log_file="$RSK_STATE_DIR/slurm-${job_id}.out"
+echo
+echo "=================================================================="
+echo "  Log file: $log_file"
+echo "  (open this path in another shell to keep reading after Ctrl-C)"
+echo "=================================================================="
+echo
+
 while [[ ! -f "$log_file" ]]; do
     state=$(sacct -j "$job_id" --format=State --noheader 2>/dev/null | awk 'NR==1 {print $1}')
     printf "\rJob %s state: %-12s (waiting for log file...)" "$job_id" "${state:-unknown}"
     sleep 1
 done
-echo -e "\nLog file detected: ${log_file}"
+echo -e "\nLog file ready."
+
+# Print the path one more time on exit so it survives in scrollback.
+trap 'echo; echo "Log: $log_file"' EXIT
 
 echo "=== Live tail (Ctrl-C to stop watching; job keeps running) ==="
-exec watch -n 1 "tail -n 30 ${log_file}"
+watch -n 1 "tail -n 30 \"$log_file\""
