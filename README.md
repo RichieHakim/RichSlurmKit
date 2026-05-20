@@ -90,7 +90,7 @@ See `config.example.yaml` for the schema and required edits.
 
 ## Where things go
 
-- SLURM logs and `--keep-rendered` job files: `~/.local/state/richslurmkit/`
-  (the path is printed by `v` / `p` when they submit a job)
+- SLURM logs + `--keep-rendered` job files: `<repo>/logs/` (gitignored).
+  Sibling of `config.yaml`; the absolute path is printed by `v`/`p` on submit.
 - Cached `devtunnel` binary (auto-installed by `vclean`): `~/.local/share/richslurmkit/bin/devtunnel`
 - Rendered job templates (per-submit): `/tmp/rsk-*.job` (auto-deleted)

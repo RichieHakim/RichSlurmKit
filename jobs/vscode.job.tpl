@@ -13,7 +13,18 @@ ${RSK_JOB_GRES_LINE}
 
 set -o errexit -o nounset -o pipefail
 
-MY_SCRATCH=$(TMPDIR=/scratch mktemp -d)
+# VS Code CLI tarball (~60MB) + per-job data dir need a writable scratch path.
+# Try $SCRATCH (set on some clusters), then /scratch (Cannon), then /tmp.
+MY_SCRATCH=""
+for _candidate in "${SCRATCH:-}" /scratch "${TMPDIR:-}" /tmp; do
+    if [[ -n "$_candidate" && -d "$_candidate" && -w "$_candidate" ]]; then
+        MY_SCRATCH=$(TMPDIR="$_candidate" mktemp -d) && break
+    fi
+done
+if [[ -z "$MY_SCRATCH" ]]; then
+    echo "FATAL: no writable scratch dir found (tried \$SCRATCH /scratch \$TMPDIR /tmp)" >&2
+    exit 1
+fi
 echo "Scratch dir: ${MY_SCRATCH}"
 
 ENV="${RSK_JOB_ENV}"

@@ -34,8 +34,11 @@ unset _rsk_config_out _rsk_python _rsk_self
 RSK_USER="${USER}"
 export RSK_USER
 
-# Where slurm logs and rendered jobs land.
-RSK_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/richslurmkit"
+# Where slurm logs and `--keep-rendered` job files land. Lives inside the
+# repo (gitignored) so it's a sibling of config.yaml -- one folder for
+# everything. Logs survive across re-clones if you cp the dir; otherwise
+# they're per-clone.
+RSK_STATE_DIR="$RSK_ROOT/logs"
 export RSK_STATE_DIR
 mkdir -p "$RSK_STATE_DIR"
 

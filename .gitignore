@@ -1,7 +1,10 @@
 # Personal config (created by install.sh; one per machine)
 /config.yaml
 
-# Slurm artifacts that occasionally land here during development
+# SLURM logs + rendered jobs (per-clone, per-machine)
+/logs/
+
+# Stray slurm artifacts that occasionally land in repo root during development
 /slurm-*.out
 /jupyter-tunnel_*.out
 /jupyter_lab_*.log
