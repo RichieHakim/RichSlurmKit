@@ -1,7 +1,8 @@
 # RichSlurmKit
 
 Bash toolkit for launching Jupyter / VS Code tunnels and managing SLURM jobs.
-Built and tested on Cannon (FASRC). Will likely need preset tweaks on other clusters.
+The presets in `config.example.yaml` are placeholders — you'll need to set your
+own account, partition, and GPU/CPU resource defaults for your cluster.
 
 ## Install
 

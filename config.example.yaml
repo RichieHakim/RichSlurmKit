@@ -1,8 +1,10 @@
 # RichSlurmKit configuration.
 # Edits to this file take effect on the next command — no rebuild needed.
 
-# Cluster login host (used in `p` for laptop ssh-tunnel instructions).
-login_host: login.rc.fas.harvard.edu
+# Cluster login host: the host you SSH to from your laptop to reach this
+# cluster. Used only by `p` to print the laptop-side ssh-tunnel one-liner.
+# Leave blank to let the installer default to `hostname -f`.
+login_host: ""
 
 # Default conda env activated inside jupyter/vscode jobs.
 # Override per-call with `v --env myenv`.
@@ -25,32 +27,32 @@ interactive:
 # parses `48:00:00` as the integer 172800 (sexagesimal). Same for any
 # value containing a colon you want kept as a string.
 presets:
-  - name: kempner_h100
-    account: kempner_YOUR_LAB
-    partition: kempner_h100
+  - name: gpu_h100
+    account: YOUR_GPU_ACCOUNT
+    partition: YOUR_H100_PARTITION
     gres: gpu:1
     cores: 24
     mem: 360G
     time: "0-48:00:00"
 
-  - name: kempner_a100
-    account: kempner_YOUR_LAB
-    partition: kempner
+  - name: gpu_a100
+    account: YOUR_GPU_ACCOUNT
+    partition: YOUR_A100_PARTITION
     gres: gpu:1
     cores: 16
     mem: 240G
     time: "0-48:00:00"
 
-  - name: kempner_requeue_a100
-    account: kempner_YOUR_LAB
-    partition: kempner_requeue
+  - name: gpu_preempt
+    account: YOUR_GPU_ACCOUNT
+    partition: YOUR_PREEMPT_PARTITION
     gres: gpu:1
     cores: 16
     mem: 240G
     time: "0-48:00:00"
 
   - name: shared_cpu
-    account: YOUR_LAB
+    account: YOUR_CPU_ACCOUNT
     partition: shared
     gres: ""
     cores: 16
