@@ -1,9 +1,10 @@
 # RichSlurmKit configuration.
 # Edits to this file take effect on the next command — no rebuild needed.
 
-# Cluster login host: the host you SSH to from your laptop to reach this
-# cluster. Used only by `p` to print the laptop-side ssh-tunnel one-liner.
-# Leave blank to let the installer default to `hostname -f`.
+# Cluster login host: the externally-reachable hostname for SSHing into this
+# cluster from elsewhere. Used only by `p` to print the ssh-tunnel one-liner
+# for off-cluster connections. The installer auto-fills `hostname -f` on
+# first run; override here if your cluster uses a different public alias.
 login_host: ""
 
 # Default conda env activated inside jupyter/vscode jobs.

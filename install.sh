@@ -57,18 +57,20 @@ else
 fi
 
 echo
-echo "Basic settings (Enter to accept the shown default)."
-echo "Defaults come from config.yaml; edit it later to tune presets and resources."
-echo
 
-# Pull defaults from the just-prepared config.yaml so config is the single
-# source of truth -- editing config.example.yaml propagates here automatically.
+# Pull current defaults from the just-prepared config.yaml so config is the
+# single source of truth -- editing config.example.yaml propagates here.
 eval "$("$python_bin" "$RSK_ROOT/lib/load_config.py" "$RSK_CONFIG")"
 
-# Fallback for login_host: hostname -f if config has it empty.
-default_login_host="${RSK_LOGIN_HOST:-}"
-if [[ -z "$default_login_host" ]]; then
-    default_login_host=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "")
+# Auto-detect login host: assume the installer is being run on a login node
+# of the target cluster, so `hostname -f` is the externally-reachable hostname.
+# Only used by `p` to print an ssh-tunnel one-liner for off-cluster connections.
+login_host="${RSK_LOGIN_HOST:-}"
+if [[ -z "$login_host" ]]; then
+    login_host=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "")
+    green "Auto-detected login host: ${login_host:-<none>}"
+    echo "  (Override later by editing 'login_host' in $RSK_CONFIG.)"
+    echo
 fi
 
 prompt() {
@@ -78,11 +80,6 @@ prompt() {
     read -r -p "    [${default}]: " val
     printf '%s' "${val:-$default}"
 }
-
-login_host=$(prompt \
-    "Login host" \
-    "Hostname you SSH to from your laptop to reach this cluster. Used only by 'p' to print a laptop-side ssh-tunnel one-liner." \
-    "$default_login_host")
 
 conda_env=$(prompt \
     "Default conda env" \
