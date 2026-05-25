@@ -15,8 +15,7 @@ source ~/.bashrc
 ```
 
 The installer is non-interactive: it copies `config.example.yaml → config.yaml`
-(if missing), guesses `login_host` from `hostname -f`, and adds one `source`
-line to `~/.bashrc`. Requires `conda`, `python`, `envsubst`, `tmux`, `ssh`.
+(if missing) and adds one `source` line to `~/.bashrc`. Requires `conda`, `python`, `envsubst`, `tmux`, `ssh`.
 PyYAML auto-installs to your user pip site-packages.
 
 To uninstall: `./uninstall.sh` (use `--purge` to also drop `config.yaml` and
@@ -40,8 +39,9 @@ Also check:
   itself. Many clusters use a load-balanced alias (e.g. `login.cluster.edu`)
   that's different. Fix it here if `p`'s ssh-tunnel one-liner needs to work
   from outside the cluster.
-- `conda_env:` — create the env (`conda create -n <name> python=3.11 jupyterlab`)
-  before running `v` or `p`.
+- `conda_env:` — the global default env. Create it before running `v` or `p`.
+  Each preset can also set its own `conda_env:` to override the global one.
+  CLI `--env` overrides everything.
 - `interactive: partition:` — defaults to `shared`, which doesn't exist on
   every cluster. Adjust.
 

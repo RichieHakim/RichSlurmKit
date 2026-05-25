@@ -115,7 +115,9 @@ rsk_resolve_job_vars() {
     RSK_JOB_CORES="${RSK_OVERRIDE_CORES:-$(rsk_preset_field "$n" CORES)}"
     RSK_JOB_MEM="${RSK_OVERRIDE_MEM:-$(rsk_preset_field "$n" MEM)}"
     RSK_JOB_TIME="${RSK_OVERRIDE_TIME:-$(rsk_preset_field "$n" TIME)}"
-    RSK_JOB_ENV="${RSK_OVERRIDE_ENV:-${RSK_CONDA_ENV:-base}}"
+    local preset_env
+    preset_env="$(rsk_preset_field "$n" CONDA_ENV)"
+    RSK_JOB_ENV="${RSK_OVERRIDE_ENV:-${preset_env:-${RSK_CONDA_ENV:-base}}}"
     RSK_JOB_USER="$USER"
     RSK_JOB_LOGIN_HOST="${RSK_LOGIN_HOST:-}"
 

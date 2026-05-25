@@ -53,18 +53,13 @@ else
     config_was_new=1
 fi
 
-# 3. Best-effort login_host fill (only if blank)
+# 3. Remind about login_host if blank
 eval "$("$python_bin" "$RSK_ROOT/lib/load_config.py" "$RSK_CONFIG")"
 if [[ -z "${RSK_LOGIN_HOST:-}" ]]; then
-    detected=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "")
-    if [[ -n "$detected" ]]; then
-        sed_set login_host "$detected"
-        yellow "Guessed login_host = $detected (from 'hostname -f')."
-        yellow "  WARN: many clusters use a load-balanced public alias that's"
-        yellow "        different from this specific login node's name."
-        yellow "        Fix in $RSK_CONFIG if 'p' should reach this cluster from"
-        yellow "        outside (e.g. 'login.<cluster>.edu' instead of 'login01...')."
-    fi
+    yellow "login_host is blank in $RSK_CONFIG."
+    yellow "  Set it to the public alias you SSH into this cluster with"
+    yellow "  (e.g. login.rc.fas.harvard.edu, o2.hms.harvard.edu)."
+    yellow "  Only needed if you use 'p' from off-cluster."
 fi
 
 # 4. ~/.bashrc marker block

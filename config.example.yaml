@@ -45,6 +45,7 @@ presets:
     cores: 24
     mem: 360G
     time: "0-48:00:00"
+    # conda_env: myenv                   # optional; overrides the global conda_env for this preset
 
   - name: gpu_a100
     account:   YOUR_GPU_ACCOUNT          # REPLACE
