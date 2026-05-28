@@ -1,0 +1,33 @@
+#!/bin/bash
+# Create a tmux session and launch claude code with --resume in it.
+# Usage: tcr [session_name]
+# Without a name, picks the lowest unused claude_N.
+# If the named session already exists, just attaches (claude is not relaunched).
+
+set -e
+
+if [ -n "$1" ]; then
+    name="$1"
+    fresh=0
+    if ! tmux has-session -t "=$name" 2>/dev/null; then
+        fresh=1
+    fi
+else
+    i=0
+    while tmux has-session -t "=claude_$i" 2>/dev/null; do
+        i=$((i+1))
+    done
+    name="claude_$i"
+    fresh=1
+fi
+
+if [ "$fresh" = 1 ]; then
+    tmux new-session -d -s "$name"
+    tmux send-keys -t "$name" "cr" Enter
+fi
+
+if [ -n "$TMUX" ]; then
+    tmux switch-client -t "$name"
+else
+    tmux attach-session -t "$name"
+fi

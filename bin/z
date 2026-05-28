@@ -1,0 +1,29 @@
+#!/bin/bash
+# Create (or attach to) a zellij session.
+# Usage: z [session_name]
+# Without a name, picks the lowest unused session_N.
+
+set -e
+
+session_exists() {
+    zellij list-sessions -s 2>/dev/null | grep -qx "$1"
+}
+
+if [ -n "$1" ]; then
+    name="$1"
+else
+    i=0
+    while session_exists "session_$i"; do
+        i=$((i+1))
+    done
+    name="session_$i"
+fi
+
+if [ -n "$ZELLIJ" ]; then
+    if ! session_exists "$name"; then
+        zellij attach --create-background "$name" >/dev/null
+    fi
+    zellij action switch-session "$name"
+else
+    zellij attach --create "$name"
+fi

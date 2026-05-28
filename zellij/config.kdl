@@ -1,0 +1,39 @@
+// RichSlurmKit zellij config.
+//
+// Frees Ctrl+o and Ctrl+g globally so the inner program (e.g. Claude Code)
+// can use them:
+//   Ctrl+o   expand details
+//   Ctrl+g   open current message in $EDITOR
+//
+// We restore zellij's session-mode entry on Ctrl+\ — universally free across
+// macOS / Linux / Windows and not eaten by VS Code's integrated terminal.
+// (Avoid Alt: on macOS, Option produces special characters like ∂, œ unless
+// the terminal is reconfigured.)
+//
+// Once in session mode:
+//   d     Detach (session keeps running)        — zellij default
+//   q     Quit   (kills session)                — added here
+//   g     Switch to Locked mode (pass-through)  — added here
+//   Esc   Back to Normal without doing anything — added here
+//
+// Locked mode disables every zellij keybinding so keystrokes pass straight
+// through to the program inside the pane. To leave Locked mode: Ctrl+\.
+//
+// Without `clear-defaults=true` this merges into zellij's defaults instead of
+// replacing them. Edit freely; this file is symlinked from $RSK_ROOT/zellij/.
+
+keybinds {
+    shared_except "locked" "renametab" "renamepane" "entersearch" {
+        unbind "Ctrl o" "Ctrl g"
+        bind "Ctrl \\" { SwitchToMode "Session"; }
+    }
+    session {
+        bind "q" { Quit; }
+        bind "g" { SwitchToMode "Locked"; }
+        bind "Esc" { SwitchToMode "Normal"; }
+    }
+    locked {
+        unbind "Ctrl g"
+        bind "Ctrl \\" { SwitchToMode "Normal"; }
+    }
+}

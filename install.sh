@@ -80,7 +80,30 @@ else
     green "Added source line to ~/.bashrc"
 fi
 
-# 5. Detect whether config still has REPLACE-me placeholders; tailor the
+# 5. zellij keybind override (Ctrl+o q -> Quit). Symlink; safe-skips if the
+# user has their own config.kdl.
+zellij_cfg_src="$RSK_ROOT/zellij/config.kdl"
+zellij_cfg_dst="$HOME/.config/zellij/config.kdl"
+mkdir -p "$(dirname "$zellij_cfg_dst")"
+if [[ -L "$zellij_cfg_dst" ]]; then
+    if [[ "$(readlink -f "$zellij_cfg_dst")" == "$(readlink -f "$zellij_cfg_src")" ]]; then
+        green "zellij config already linked"
+    else
+        yellow "zellij config is a symlink to $(readlink "$zellij_cfg_dst"); leaving as-is"
+        yellow "  To use RichSlurmKit's binding (Ctrl+o q -> Quit), replace with:"
+        yellow "    ln -sf $zellij_cfg_src $zellij_cfg_dst"
+    fi
+elif [[ -e "$zellij_cfg_dst" ]]; then
+    yellow "zellij config exists at $zellij_cfg_dst; leaving as-is"
+    yellow "  To add RichSlurmKit's bindings, see zellij/config.kdl in this repo."
+    yellow "  Summary: unbinds Ctrl+o and Ctrl+g (for Claude Code), moves the"
+    yellow "  zellij session-mode prefix to Ctrl+\\ (then d/q/g for detach/quit/lock)."
+else
+    ln -s "$zellij_cfg_src" "$zellij_cfg_dst"
+    green "Linked zellij config: $zellij_cfg_dst -> $zellij_cfg_src"
+fi
+
+# 6. Detect whether config still has REPLACE-me placeholders; tailor the
 # closing message to whichever state the user is actually in.
 needs_edits=0
 if grep -qE 'YOUR_[A-Z_]+' "$RSK_CONFIG"; then

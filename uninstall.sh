@@ -35,6 +35,13 @@ else
     echo "No RichSlurmKit block found in ~/.bashrc"
 fi
 
+zellij_cfg_src="$RSK_ROOT/zellij/config.kdl"
+zellij_cfg_dst="$HOME/.config/zellij/config.kdl"
+if [[ -L "$zellij_cfg_dst" ]] && [[ "$(readlink -f "$zellij_cfg_dst")" == "$(readlink -f "$zellij_cfg_src")" ]]; then
+    rm -f "$zellij_cfg_dst"
+    echo "Removed zellij config symlink"
+fi
+
 if [[ $purge -eq 1 ]]; then
     rm -f "$RSK_ROOT/config.yaml"
     rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/richslurmkit"

@@ -1,0 +1,47 @@
+#!/bin/bash
+# Create a zellij session and launch claude code with --resume in it.
+# Usage: zcr [session_name]
+# Without a name, picks the lowest unused claude_N.
+# If the named session already exists, just attaches (claude is not relaunched).
+
+set -e
+
+session_exists() {
+    zellij list-sessions -s 2>/dev/null | grep -qx "$1"
+}
+
+if [ -n "$1" ]; then
+    name="$1"
+else
+    i=0
+    while session_exists "claude_$i"; do
+        i=$((i+1))
+    done
+    name="claude_$i"
+fi
+
+if session_exists "$name"; then
+    if [ -n "$ZELLIJ" ]; then
+        zellij action switch-session "$name"
+    else
+        zellij attach "$name"
+    fi
+    exit 0
+fi
+
+if [ -n "$ZELLIJ" ]; then
+    echo "zcr: already inside a zellij session. Detach first (Ctrl+o d) and re-run." >&2
+    exit 1
+fi
+
+layout_file=$(mktemp --suffix=.kdl)
+trap 'rm -f "$layout_file"' EXIT
+cat > "$layout_file" <<'EOF'
+layout {
+    pane command="bash" {
+        args "-ic" "cr; exec bash -i"
+    }
+}
+EOF
+
+zellij -s "$name" -n "$layout_file"

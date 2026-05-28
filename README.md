@@ -65,6 +65,37 @@ v                # submit preset 1
 | `s` | `sshare` for your user |
 | `n` | `watch nvidia-smi` |
 | `c` / `cr` | Personal shortcut: `claude --dangerously-skip-permissions` (resume with `cr`). Delete these if you don't use Claude Code. |
+| `t [name]` | Create (or attach to) a tmux session. Auto-names `session_N` if no name given. |
+| `tc [name]` / `tcr [name]` | Like `t`, but launches `c` / `cr` inside the session. Auto-names `claude_N`. If the named session already exists, just attaches. |
+| `z [name]` / `zc [name]` / `zcr [name]` | Same as `t` / `tc` / `tcr` but using [zellij](https://github.com/zellij-org/zellij) instead of tmux (mouse-scroll works natively). Requires `zellij` on `PATH`. |
+
+### zellij keybindings
+
+For terminal multiplexing, I recommend installing and using `zellij`. It's a bit friendlier than tmux for agentic coding TUIs.
+
+`install.sh` symlinks `zellij/config.kdl` to `~/.config/zellij/config.kdl`.
+Two zellij defaults (`Ctrl+o`, `Ctrl+g`) collide with Claude Code's bindings
+(expand details, open in `$EDITOR`), so we unbind them and move zellij's
+session-mode prefix to `Ctrl+\`:
+
+| key | action |
+|---|---|
+| `Ctrl+\` then `d` | Detach (session keeps running) |
+| `Ctrl+\` then `q` | Quit (kills session) |
+| `Ctrl+\` then `g` | Toggle Locked mode (zellij passes all keys through) |
+| `Ctrl+\` then `Esc` | Cancel — back to Normal mode |
+
+`Ctrl+\` is chosen because it's universally free on macOS / Linux / Windows
+and in VS Code's integrated terminal. Alt/Option is avoided because on macOS
+it produces special characters (`Option+d` → `∂`) unless the terminal is
+specifically reconfigured.
+
+All other zellij defaults are unchanged. If you hit another claude-code key
+that zellij eats (e.g. `Ctrl+p`/`Ctrl+t`/`Ctrl+r`/`Ctrl+s` enter pane/tab/
+resize/scroll modes), add the same `unbind` pattern to `zellij/config.kdl`.
+
+If you already have a `~/.config/zellij/config.kdl`, the installer leaves it
+alone and prints a pointer to this file so you can copy what you want.
 
 `v` and `p` share a CLI:
 

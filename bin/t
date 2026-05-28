@@ -1,0 +1,26 @@
+#!/bin/bash
+# Create (or attach to) a tmux session.
+# Usage: t [session_name]
+# Without a name, picks the lowest unused session_N.
+
+set -e
+
+if [ -n "$1" ]; then
+    name="$1"
+else
+    i=0
+    while tmux has-session -t "=session_$i" 2>/dev/null; do
+        i=$((i+1))
+    done
+    name="session_$i"
+fi
+
+if ! tmux has-session -t "=$name" 2>/dev/null; then
+    tmux new-session -d -s "$name"
+fi
+
+if [ -n "$TMUX" ]; then
+    tmux switch-client -t "$name"
+else
+    tmux attach-session -t "$name"
+fi
