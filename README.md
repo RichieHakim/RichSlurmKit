@@ -67,7 +67,8 @@ v                # submit preset 1
 | `c` / `cr` | Personal shortcut: `claude --dangerously-skip-permissions` (resume with `cr`). Delete these if you don't use Claude Code. |
 | `t [name]` | Create (or attach to) a tmux session. Auto-names `session_N` if no name given. |
 | `tc [name]` / `tcr [name]` | Like `t`, but launches `c` / `cr` inside the session. Auto-names `claude_N`. If the named session already exists, just attaches. |
-| `z [name]` / `zc [name]` / `zcr [name]` | Same as `t` / `tc` / `tcr` but using [zellij](https://github.com/zellij-org/zellij) instead of tmux (mouse-scroll works natively). Requires `zellij` on `PATH`. |
+| `z [args...]` | Alias for [zellij](https://github.com/zellij-org/zellij); passes all arguments straight through. Requires `zellij` on `PATH`. |
+| `zc [name]` / `zcr [name]` | Like `tc` / `tcr` but using zellij. Launches `c` / `cr` in a new session, auto-naming `claude_N`. If the named session already exists, just attaches. |
 
 ### zellij keybindings
 
