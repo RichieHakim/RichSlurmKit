@@ -19,6 +19,35 @@
 // Locked mode disables every zellij keybinding so keystrokes pass straight
 // through to the program inside the pane. To leave Locked mode: Ctrl+\.
 //
+// ---------------------------------------------------------------------------
+// Scrollback (reading earlier output / Claude Code conversation history)
+// ---------------------------------------------------------------------------
+// zellij runs in the terminal's ALTERNATE screen, so the host terminal's own
+// scrollbar (and Shift+wheel in VS Code) can never show history — only zellij's
+// own scroll buffer holds it.
+//
+// Recent Claude Code versions CAPTURE THE MOUSE, so while Claude Code is
+// focused the wheel is consumed by Claude Code instead of scrolling zellij's
+// buffer. There is exactly one wheel and two consumers; zellij can't route
+// clicks to the app while keeping the wheel for itself. The fix is a transient
+// hand-off via Scroll mode, where the KEYBOARD always navigates history:
+//
+//   Ctrl+s            enter Scroll mode
+//   j / k             scroll one line   (PageUp/PageDown or Ctrl+f/Ctrl+b = page)
+//   d / u             half page down / up
+//   wheel             ALSO scrolls IF your zellij reclaims the mouse here
+//                     (varies by build; verify once with: Ctrl+s, then wheel up)
+//   /                 search backward through scrollback
+//   Esc  or  q        jump back to bottom and return to Normal (mouse → app)
+//
+// We also UNBIND 'e' in Scroll mode: by default it runs EditScrollback, which
+// dumps the buffer to a /tmp/*.dump file and opens it in $EDITOR (code --wait)
+// — the surprise "a .dump file opened in VS Code" behavior.
+//
+// Note: mouse_mode is left at its default (true) ON PURPOSE so Claude Code
+// keeps its mouse feature; the Scroll-mode hand-off above is what gives the
+// wheel back on demand.
+//
 // Without `clear-defaults=true` this merges into zellij's defaults instead of
 // replacing them. Edit freely; this file is symlinked from $RSK_ROOT/zellij/.
 
@@ -36,4 +65,15 @@ keybinds {
         unbind "Ctrl g"
         bind "Ctrl \\" { SwitchToMode "Normal"; }
     }
+    scroll {
+        // Defuse the accidental-.dump footgun.
+        unbind "e"
+        // Ergonomic exit: snap to bottom and hand the mouse back to the app.
+        bind "Esc" "q" { ScrollToBottom; SwitchToMode "Normal"; }
+        // Enter search directly with '/' (zellij's default for this is 's').
+        bind "/" { SwitchToMode "EnterSearch"; SearchInput 0; }
+    }
 }
+
+// Keep plenty of history available to scroll back through (default is 10000).
+scroll_buffer_size 50000
