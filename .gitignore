@@ -12,3 +12,8 @@
 # Editor noise
 .DS_Store
 *.swp
+*~
+
+# NFS silly-rename files: left behind when an open file is replaced/deleted on
+# an NFS mount (e.g. editing bin/zcr while a zcr process still has it open).
+.nfs*
