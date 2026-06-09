@@ -41,6 +41,11 @@ layout_file=$(mktemp --suffix=.kdl)
 trap 'rm -f "$layout_file"' EXIT
 cat > "$layout_file" <<'EOF'
 layout {
+    // One-row bar so the zellij session name is always visible. Drawn by zellij
+    // itself, so it works in any host terminal (VS Code, iTerm, plain SSH).
+    pane size=1 borderless=true {
+        plugin location="compact-bar"
+    }
     pane command="bash" {
         args "-ic" "c; exec bash -i"
     }

@@ -54,6 +54,13 @@
 keybinds {
     shared_except "locked" "renametab" "renamepane" "entersearch" {
         unbind "Ctrl o" "Ctrl g"
+        // macOS/VS Code send Option+Right as Meta-f (ESC f) and Option+Left as
+        // Meta-b (ESC b) -- the readline word-movement sequences. zellij's default
+        // binds "Alt f" to ToggleFloatingPanes, which eats Option+Right (the
+        // "floating subwindow"). Unbind it so the key passes through to the shell.
+        // (Option+Left = "Alt b" is unbound by default, so it already passes through.
+        //  Floating panes are still reachable via pane mode: Ctrl+p then w.)
+        unbind "Alt f"
         bind "Ctrl \\" { SwitchToMode "Session"; }
     }
     session {

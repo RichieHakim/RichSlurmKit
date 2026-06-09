@@ -1,0 +1,38 @@
+#!/bin/bash
+# Self-healing `code` wrapper.
+#
+# VS Code's IPC socket (VSCODE_IPC_HOOK_CLI -> /tmp/vscode-ipc-*.sock) rotates on
+# every reconnect / new window. Long-lived processes launched inside zellij (e.g.
+# Claude Code, whose Ctrl+G runs `code --wait`) keep the *old* path and then fail
+# with "VSCode quit unexpectedly (exit code 1)" once that socket is gone.
+#
+# This wrapper repoints VSCODE_IPC_HOOK_CLI at the newest live socket on every
+# call, then hands off to the real `code` further down PATH. Net effect: `code`
+# (and Ctrl+G) keep working across reconnects with no manual fix or restart.
+#
+# Must sit ahead of VS Code's remote-cli on PATH to take effect (we reach it via a
+# symlink from ~/scripts/helpers, which precedes remote-cli).
+
+# Point at the most recently created VS Code IPC socket, if any exist.
+newest=$(ls -t /tmp/vscode-ipc-*.sock 2>/dev/null | head -1)
+[ -n "$newest" ] && export VSCODE_IPC_HOOK_CLI="$newest"
+
+# Find the next `code` on PATH that is not this wrapper (resolve symlinks so a
+# scripts/helpers -> repo symlink doesn't match itself and recurse).
+self=$(readlink -f "${BASH_SOURCE[0]:-$0}" 2>/dev/null)
+real=""
+IFS=':' read -ra _dirs <<< "$PATH"
+for _d in "${_dirs[@]}"; do
+    _cand="$_d/code"
+    if [ -x "$_cand" ] && [ "$(readlink -f "$_cand" 2>/dev/null)" != "$self" ]; then
+        real="$_cand"
+        break
+    fi
+done
+
+if [ -z "$real" ]; then
+    echo "code (rsk wrapper): real 'code' not found on PATH" >&2
+    exit 127
+fi
+
+exec "$real" "$@"
