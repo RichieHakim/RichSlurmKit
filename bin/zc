@@ -10,6 +10,13 @@ session_exists() {
     zellij list-sessions -s 2>/dev/null | grep -qx "$1"
 }
 
+# Optional leading `a`/`attach`, for muscle-memory parity with `z a <name>`.
+# zc always attaches-or-creates, so the token is redundant -- drop it and treat
+# the next arg as the session name.
+case "$1" in
+    a|attach) shift ;;
+esac
+
 if [ -n "$1" ]; then
     name="$1"
 else

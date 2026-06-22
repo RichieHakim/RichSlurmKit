@@ -49,12 +49,19 @@ complete -F _rsk_complete_z z
 
 # zc / zcr take an optional session name as their sole positional arg. Offer
 # existing names so attaching to a running one is a tab away (typing a brand
-# new name still works -- compgen just won't suggest anything).
+# new name still works -- compgen just won't suggest anything). For parity with
+# `z a <name>`, also complete the slot after an optional leading `a`/`attach`.
 _rsk_complete_zc() {
-    if [ "$COMP_CWORD" -eq 1 ]; then
-        local cur="${COMP_WORDS[COMP_CWORD]}"
-        COMPREPLY=( $(compgen -W "$(_rsk_zellij_sessions)" -- "$cur") )
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    if [ "$COMP_CWORD" -eq 2 ]; then
+        case "${COMP_WORDS[1]}" in
+            a|attach) ;;   # name lives in slot 2 -- complete it
+            *) return ;;
+        esac
+    elif [ "$COMP_CWORD" -ne 1 ]; then
+        return
     fi
+    COMPREPLY=( $(compgen -W "$(_rsk_zellij_sessions)" -- "$cur") )
 }
 complete -F _rsk_complete_zc zc zcr
 
