@@ -31,7 +31,12 @@ if session_exists "$name"; then
     if [ -n "$ZELLIJ" ]; then
         zellij action switch-session "$name"
     else
-        zellij attach "$name"
+        # --force-run-commands: if NAME is a dead/serialized session (its zellij
+        # server died -- common on a login node after a disconnect/reboot),
+        # resurrect it AND immediately run its held command (cr) instead of
+        # leaving the pane in zellij's "Waiting to run <ENTER>" hold screen.
+        # No-op for a live session.
+        zellij attach --force-run-commands "$name"
     fi
     exit 0
 fi
