@@ -133,6 +133,35 @@ rsk_resolve_job_vars() {
         RSK_JOB_USER RSK_JOB_LOGIN_HOST
 }
 
+# Human-readable summary of what will be requested from SLURM. Call after
+# rsk_resolve_job_vars. Reads the resolved RSK_JOB_* values and the
+# RSK_OVERRIDE_* flags (to mark which fields came from CLI flags vs the preset).
+# $1 (optional): one-line description of what the job launches.
+rsk_print_job_summary() {
+    local launches="${1:-}"
+    local mk_account="" mk_partition="" mk_gres="" mk_cores="" mk_mem="" mk_time="" mk_env=""
+    [[ -n "$RSK_OVERRIDE_ACCOUNT"   ]] && mk_account="  (override)"
+    [[ -n "$RSK_OVERRIDE_PARTITION" ]] && mk_partition="  (override)"
+    [[ $RSK_OVERRIDE_GRES_SET -eq 1 ]] && mk_gres="  (override)"
+    [[ -n "$RSK_OVERRIDE_CORES"     ]] && mk_cores="  (override)"
+    [[ -n "$RSK_OVERRIDE_MEM"       ]] && mk_mem="  (override)"
+    [[ -n "$RSK_OVERRIDE_TIME"      ]] && mk_time="  (override)"
+    [[ -n "$RSK_OVERRIDE_ENV"       ]] && mk_env="  (override)"
+
+    echo "=== Session request (preset ${RSK_PRESET_IDX}: ${RSK_JOB_NAME}) ==="
+    printf "  %-13s %s%s\n" "Account:"    "$RSK_JOB_ACCOUNT"        "$mk_account"
+    printf "  %-13s %s%s\n" "Partition:"  "$RSK_JOB_PARTITION"      "$mk_partition"
+    printf "  %-13s %s%s\n" "GRES:"       "${RSK_JOB_GRES:-none}"   "$mk_gres"
+    printf "  %-13s %s%s\n" "CPU cores:"  "$RSK_JOB_CORES"          "$mk_cores"
+    printf "  %-13s %s%s\n" "Memory:"     "$RSK_JOB_MEM"            "$mk_mem"
+    printf "  %-13s %s%s\n" "Time limit:" "$RSK_JOB_TIME"           "$mk_time"
+    printf "  %-13s %s\n"   "Nodes:"      "1 (no --nodes/--ntasks set; SLURM default)"
+    printf "  %-13s %s%s\n" "Conda env:"  "$RSK_JOB_ENV"            "$mk_env"
+    [[ -n "${RSK_JOB_LOGIN_HOST:-}" ]] && printf "  %-13s %s\n" "Login host:" "$RSK_JOB_LOGIN_HOST"
+    [[ -n "$launches" ]] && printf "  %-13s %s\n" "Launches:" "$launches"
+    printf "  %-13s %s\n"   "Config:"     "$RSK_CONFIG"
+}
+
 # Render template by allow-listing only RSK_JOB_* vars (protects $SLURM_JOB_ID etc.).
 rsk_render_template() {
     local tpl="$1"

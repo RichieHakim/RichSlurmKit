@@ -20,6 +20,9 @@ if [[ $RSK_LIST -eq 1 ]]; then rsk_list_presets; exit 0; fi
 
 rsk_resolve_job_vars
 
+rsk_print_job_summary "Jupyter Lab + VS Code Remote Tunnel"
+echo
+
 # Prune stale VS Code tunnel registrations (best-effort).
 "$RSK_ROOT/bin/vclean" --non-interactive --quiet \
     || echo "Warning: stale VS Code tunnel cleanup skipped." >&2
