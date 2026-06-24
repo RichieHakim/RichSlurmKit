@@ -1,0 +1,15 @@
+#!/bin/bash
+# zzc -- solo variant of `zc`: detach every other zellij client first (so you
+# get a clean, full-size session with a green border), then run `zc` to
+# create-or-attach a claude session.
+#
+# `zzc` is to `zc` what `zz` is to `z a`: same behavior, but dedup-first instead
+# of coactive. Safe -- `zsolo` only detaches client views; a `claude` already
+# running in another session keeps going. See `zsolo`.
+#
+# Usage: zzc [name]   (same args as zc; auto-names claude_N if no name)
+
+# Dedup other clients (no-op if run from inside a session), then hand off to zc,
+# which does the create-or-attach + launches `c`. Now solo, since others are gone.
+zsolo
+exec zc "$@"

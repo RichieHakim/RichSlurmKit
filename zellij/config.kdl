@@ -46,7 +46,8 @@
 //
 // Note: mouse_mode is left at its default (true) ON PURPOSE so Claude Code
 // keeps its mouse feature; the Scroll-mode hand-off above is what gives the
-// wheel back on demand.
+// wheel back on demand. (Setting it false severs zellij's mouse forwarding, so
+// the terminal falls back to translating the wheel into arrow keys -- worse.)
 //
 // Without `clear-defaults=true` this merges into zellij's defaults instead of
 // replacing them. Edit freely; this file is symlinked from $RSK_ROOT/zellij/.

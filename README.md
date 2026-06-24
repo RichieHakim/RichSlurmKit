@@ -67,8 +67,10 @@ v                # submit preset 1
 | `c` / `cr` | Personal shortcut: `claude --dangerously-skip-permissions` (resume with `cr`). Delete these if you don't use Claude Code. |
 | `t [name]` | Create (or attach to) a tmux session. Auto-names `session_N` if no name given. |
 | `tc [name]` / `tcr [name]` | Like `t`, but launches `c` / `cr` inside the session. Auto-names `claude_N`. If the named session already exists, just attaches. |
-| `z [args...]` | Alias for [zellij](https://github.com/zellij-org/zellij); passes all arguments straight through. Requires `zellij` on `PATH`. |
-| `zc [name]` / `zcr [name]` | Like `tc` / `tcr` but using zellij. Launches `c` / `cr` in a new session, auto-naming `claude_N`. If the named session already exists, just attaches. |
+| `z [args...]` | Alias for [zellij](https://github.com/zellij-org/zellij); passes all arguments straight through. Requires `zellij` on `PATH`. `z a <name>` attaches *coactively* (leaves other clients connected). |
+| `zz [name]` | **Solo-attach.** Detaches all *other* zellij clients first, then attaches (creating the session if needed), so you always get a clean, full-size session with a green border. Use this instead of `z a` when a reattach comes up small with a blue border. Safe — it only detaches client *views*; programs running in sessions (e.g. a live `claude`) keep running, as they're hosted by the session's `--server`. See note below. |
+| `zc [name]` / `zcr [name]` | Like `tc` / `tcr` but using zellij. Launches `c` / `cr` in a new session, auto-naming `claude_N`. If the named session already exists, just attaches (coactively). |
+| `zzc [name]` / `zzcr [name]` | **Solo** variants of `zc` / `zcr`: detach all *other* zellij clients first, then create-or-attach the claude session — so you reconnect full-size with a green border. Same safety as `zz`. |
 
 ### zellij keybindings
 
@@ -97,6 +99,35 @@ resize/scroll modes), add the same `unbind` pattern to `zellij/config.kdl`.
 
 If you already have a `~/.config/zellij/config.kdl`, the installer leaves it
 alone and prints a pointer to this file so you can copy what you want.
+
+### Solo (`zz*`) vs coactive attach
+
+A zellij session can have several clients attached at once. When it does,
+zellij sizes the session to the **smallest** attached client and tints the
+extra client's focus **blue**. After a VS Code / terminal reload the old client
+often lingers (the node-local zellij server outlives your terminal), so a plain
+reattach lands you in a session that's small and blue-bordered.
+
+The fix is the **`zz` prefix = "solo"**: those commands detach every *other*
+zellij client first, so you're the only one and the session fills your terminal
+(green border). Each has a plain coactive counterpart that leaves other clients
+attached (use those when you deliberately want multiple live views — pairing, or
+watching one session while working in another):
+
+| solo (dedup first) | coactive | does |
+|---|---|---|
+| `zz <name>` | `z a <name>` | attach to a session |
+| `zzc [name]` | `zc [name]` | create-or-attach + `claude` |
+| `zzcr [name]` | `zcr [name]` | create-or-attach + `claude --resume` |
+
+The shared dedup lives in **`zsolo`** (run it directly to just clear stale
+clients). It's safe: detaching a client never stops the programs in a session's
+panes (a running `claude` keeps going) — those are owned by the session's
+`zellij --server`, which `zsolo` never touches. It only ever SIGTERMs foreground
+`zellij` client processes; reattach to get any view back. Run a `zz*` command
+from a **plain terminal** (the fresh one a reload gives you) — that's where the
+dedup fires; from *inside* a session it can't dedup itself, so it just attaches/
+switches.
 
 `v` and `p` share a CLI:
 

@@ -1,0 +1,40 @@
+#!/bin/bash
+# zsolo -- detach every OTHER zellij client so the next attach is the sole one.
+#
+# Shared dedup helper behind the `zz`-family commands (zz / zzc / zzcr). A zellij
+# session sizes itself to its SMALLEST attached client and tints extra clients'
+# focus blue, so a stale client left over from a reloaded/resized terminal makes
+# a reattach render small with a blue border. zsolo clears those stragglers.
+#
+# SAFE BY CONSTRUCTION: it only ever SIGTERMs foreground `zellij` client/launcher
+# processes (`zellij a|attach ...`, `zellij -s ...`); it NEVER touches a
+# `zellij --server` (which hosts the session and everything running in its panes,
+# e.g. a live `claude`). Detaching a client doesn't stop those programs -- the
+# panes' PTYs belong to the server, not the client -- so nothing is lost; reattach
+# to get any view back.
+#
+# No-op when run from INSIDE a session ($ZELLIJ set): it can't dedup without
+# detaching the caller itself. This makes it safe to chain before an attach.
+#
+# Usage: zsolo        (used internally by zz/zzc/zzcr; also fine to run directly)
+
+# Inside a session already -> can't safely dedup; do nothing.
+[ -n "$ZELLIJ" ] && exit 0
+
+killed=""
+for p in $(pgrep -u "$USER" -x zellij 2>/dev/null); do
+    args=$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null)
+    case " $args " in
+        *" --server "*) : ;;                       # session server -> preserve
+        *) if kill "$p" 2>/dev/null; then killed="$killed $p"; fi ;;
+    esac
+done
+
+# Let the servers register the disconnects before the caller attaches, so we
+# don't briefly re-trigger the smallest-client clamp during the handoff.
+if [ -n "$killed" ]; then
+    sleep 0.25
+    echo "zsolo: detached$killed" >&2
+fi
+
+exit 0

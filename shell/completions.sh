@@ -1,4 +1,4 @@
-# Bash tab-completion for the zellij wrappers (z / zc / zcr).
+# Bash tab-completion for the zellij wrappers (z / zc / zcr / zz / zzc / zzcr).
 # Completes live session names so you can do e.g.  `z a my_ses<TAB>`.
 # Sourced from shellrc.sh. Bash only (guarded below); harmless if skipped.
 
@@ -47,7 +47,7 @@ a k d ls ka da ac e" -- "$cur") )
 }
 complete -F _rsk_complete_z z
 
-# zc / zcr take an optional session name as their sole positional arg. Offer
+# zc / zcr / zz / zzc / zzcr take an optional session name as their sole positional arg. Offer
 # existing names so attaching to a running one is a tab away (typing a brand
 # new name still works -- compgen just won't suggest anything). For parity with
 # `z a <name>`, also complete the slot after an optional leading `a`/`attach`.
@@ -63,6 +63,6 @@ _rsk_complete_zc() {
     fi
     COMPREPLY=( $(compgen -W "$(_rsk_zellij_sessions)" -- "$cur") )
 }
-complete -F _rsk_complete_zc zc zcr
+complete -F _rsk_complete_zc zc zcr zz zzc zzcr
 
 fi

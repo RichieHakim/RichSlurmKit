@@ -1,0 +1,48 @@
+#!/bin/bash
+# zz -- attach to a zellij session as the SOLE client (solo / dedup).
+#
+# Detaches every other zellij client first (via `zsolo`), then attaches, so you
+# always land in a clean, full-size session with a green border -- never the
+# stale-client size-clamp that shows up as a small, blue-bordered pane after a
+# VS Code / terminal reload.
+#
+# Safe: `zsolo` only detaches client *views*; programs running in sessions (e.g.
+# a live `claude`) keep running. See `zsolo` for details.
+#
+# This is the plain-attach member of the `zz` family:
+#   zz <name>     solo attach to a session       (vs `z a <name>` = coactive)
+#   zzc [name]    solo zc  (claude)              (vs `zc`  = coactive)
+#   zzcr [name]   solo zcr (claude --resume)     (vs `zcr` = coactive)
+#
+# Usage:
+#   zz            # list sessions
+#   zz <name>     # solo-attach to <name> (creates it if it doesn't exist)
+
+set -e
+
+session_exists() { zellij list-sessions -s 2>/dev/null | grep -qx "$1"; }
+
+# Tolerate `zz a <name>` muscle memory (parity with `z a <name>`).
+case "$1" in a|attach) shift ;; esac
+name="$1"
+
+if [ -z "$name" ]; then
+    exec zellij list-sessions
+fi
+
+if [ -n "$ZELLIJ" ]; then
+    # Already inside a session: can't dedup (would detach us mid-command), so
+    # just switch to the target if it exists.
+    if session_exists "$name"; then
+        exec zellij action switch-session "$name"
+    fi
+    echo "zz: '$name' not found (and can't create from inside a session). Detach first (Ctrl+\\ d)." >&2
+    exit 1
+fi
+
+# Fresh terminal: detach all other clients, then attach solo.
+# --create: make the session if it doesn't exist yet.
+# --force-run-commands: if NAME is a dead/serialized session, resurrect it and
+#   run its held command instead of stopping at the "Waiting to run" screen.
+zsolo
+exec zellij attach --create --force-run-commands "$name"

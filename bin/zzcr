@@ -1,0 +1,15 @@
+#!/bin/bash
+# zzcr -- solo variant of `zcr`: detach every other zellij client first (so you
+# get a clean, full-size session with a green border), then run `zcr` to
+# create-or-attach a claude --resume session.
+#
+# `zzcr` is to `zcr` what `zz` is to `z a`: same behavior, but dedup-first
+# instead of coactive. Safe -- `zsolo` only detaches client views; a `claude`
+# already running in another session keeps going. See `zsolo`.
+#
+# Usage: zzcr [name]   (same args as zcr; auto-names claude_N if no name)
+
+# Dedup other clients (no-op if run from inside a session), then hand off to zcr,
+# which does the create-or-attach + launches `cr`. Now solo, since others are gone.
+zsolo
+exec zcr "$@"
