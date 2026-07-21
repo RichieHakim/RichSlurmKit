@@ -60,6 +60,22 @@ presets:
     mem: 240G
     time: "0-48:00:00"
 
+  - name: gpu_h200
+    account:   YOUR_GPU_ACCOUNT          # REPLACE
+    partition: YOUR_H200_PARTITION       # REPLACE (or remove if no H200s)
+    gres: gpu:1
+    cores: 16
+    mem: 360G
+    time: "0-48:00:00"
+
+  - name: gpu_rtx
+    account:   YOUR_GPU_ACCOUNT          # REPLACE
+    partition: YOUR_RTX_PARTITION        # REPLACE (or remove if no RTX nodes)
+    gres: gpu:1
+    cores: 16
+    mem: 64G                             # keep tight: some sites bill RTX memory heavily
+    time: "0-48:00:00"
+
   - name: gpu_preempt
     account:   YOUR_GPU_ACCOUNT          # REPLACE
     partition: YOUR_PREEMPT_PARTITION    # REPLACE (or delete this preset)
