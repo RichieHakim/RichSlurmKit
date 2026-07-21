@@ -71,16 +71,47 @@ curl -Lk 'https://update.code.visualstudio.com/latest/cli-alpine-x64/stable' \
 CLI_DATA_DIR="${MY_SCRATCH}/vscode-cli-data"
 mkdir -p "${CLI_DATA_DIR}"
 
-# GitHub device-login (once per data-dir -> once per job).
-# KEYCHAIN_ENCRYPT=1 skips libsecret/keychain (no dbus on compute node).
+# --- Persist the GitHub tunnel auth token across jobs (one-time device login) --
+# The login token is cached as token.json inside the CLI data dir, but that dir
+# lives on per-job scratch and is discarded at job end, so each new job would
+# otherwise re-prompt for the github.com/login/device code. We keep only the
+# small token.json in a stable $HOME store and seed it into each per-job data
+# dir; everything else in the data dir stays per-job on scratch, so concurrent
+# tunnels keep their independent singleton locks. token.json is a secret and is
+# never echoed or printed.
+AUTH_STORE="${HOME}/.local/share/richslurmkit/vscode-cli-auth"
+mkdir -p "${AUTH_STORE}"
+chmod 700 "${AUTH_STORE}"
+if [[ -f "${AUTH_STORE}/token.json" ]]; then
+    install -m 600 "${AUTH_STORE}/token.json" "${CLI_DATA_DIR}/token.json"
+fi
+
+# GitHub device-login. A no-op (no paste) when the seeded token is still valid.
+# KEYCHAIN_ENCRYPT=1 skips libsecret/keychain (no dbus on compute node), which
+# also keeps token.json plaintext-portable across jobs.
 VSCODE_CLI_DISABLE_KEYCHAIN_ENCRYPT=1 \
     "${MY_SCRATCH}/code" --cli-data-dir "${CLI_DATA_DIR}" \
         tunnel user login --provider github
 
+# Save the token right after login -- NOT only at exit: SLURM time-limit/scancel
+# sends SIGKILL, which skips the EXIT trap, so a first login or refresh captured
+# only there would be lost. install(1) writes it mode 600 atomically.
+if [[ -f "${CLI_DATA_DIR}/token.json" ]]; then
+    install -m 600 "${CLI_DATA_DIR}/token.json" "${AUTH_STORE}/token.json"
+fi
+
 cd "$HOME"
 
-# Unregister on clean exit (SIGKILL won't fire this; run `vclean` to mop up).
-trap '"${MY_SCRATCH}/code" --cli-data-dir "${CLI_DATA_DIR}" tunnel unregister 2>/dev/null || true' EXIT
+# On CLEAN exit: capture any token the tunnel refreshed mid-run (refresh-token
+# rotation), then unregister so it doesn't linger in the account. SIGKILL skips
+# this -- hence the save right after login above, and `vclean` to mop up leaks.
+_rsk_on_exit() {
+    if [[ -f "${CLI_DATA_DIR}/token.json" ]]; then
+        install -m 600 "${CLI_DATA_DIR}/token.json" "${AUTH_STORE}/token.json" 2>/dev/null || true
+    fi
+    "${MY_SCRATCH}/code" --cli-data-dir "${CLI_DATA_DIR}" tunnel unregister 2>/dev/null || true
+}
+trap _rsk_on_exit EXIT
 
 echo "Using VS Code tunnel name: ${TUNNEL_NAME}"
 "${MY_SCRATCH}/code" --cli-data-dir "${CLI_DATA_DIR}" tunnel \
