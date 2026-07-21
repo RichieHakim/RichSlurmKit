@@ -78,5 +78,8 @@ echo -e "\nLog file ready."
 # Print the path one more time on exit so it survives in scrollback.
 trap 'echo; echo "Log: $log_file"' EXIT
 
-echo "=== Live tail (Ctrl-C to stop watching; job keeps running) ==="
-watch -n 1 "tail -n 30 \"$log_file\""
+echo "=== Live viewer (Ctrl-C to stop watching; job keeps running) ==="
+# Pin a compact session header (Jupyter URL, tunnel login, node, state) above
+# the scrolling tail so it stays visible as the log grows. The header is
+# rebuilt each refresh by lib/vscode_header.sh (best-effort; never errors out).
+watch -t -n 2 "\"$RSK_ROOT/lib/vscode_header.sh\" \"$log_file\" \"$job_id\" \"$RSK_JOB_NAME\" \"$RSK_JOB_PARTITION\"; echo; tail -n 20 \"$log_file\""
