@@ -28,11 +28,12 @@ rsk_list_presets() {
         echo "No presets defined in $RSK_CONFIG."
         return
     fi
-    printf "%-3s %-24s %-10s %-22s %-10s %-6s %-8s %s\n" \
-        "#" "NAME" "ACCOUNT" "PARTITION" "GRES" "CORES" "MEM" "TIME"
-    local i
+    printf "%-3s %-24s %-10s %-22s %-10s %-6s %-8s %-12s %s\n" \
+        "#" "NAME" "ACCOUNT" "PARTITION" "GRES" "CORES" "MEM" "TIME" ""
+    local i _def
+    _def="$(rsk_default_preset_idx)"
     for ((i = 1; i <= RSK_PRESET_COUNT; i++)); do
-        local n a p g c m t
+        local n a p g c m t mark
         n=$(rsk_preset_field "$i" NAME)
         a=$(rsk_preset_field "$i" ACCOUNT)
         p=$(rsk_preset_field "$i" PARTITION)
@@ -40,8 +41,10 @@ rsk_list_presets() {
         c=$(rsk_preset_field "$i" CORES)
         m=$(rsk_preset_field "$i" MEM)
         t=$(rsk_preset_field "$i" TIME)
-        printf "%-3s %-24s %-10s %-22s %-10s %-6s %-8s %s\n" \
-            "$i" "$n" "$a" "$p" "${g:-}" "$c" "$m" "$t"
+        mark=""
+        [[ "$i" -eq "$_def" ]] && mark="<- default (bare v)"
+        printf "%-3s %-24s %-10s %-22s %-10s %-6s %-8s %-12s %s\n" \
+            "$i" "$n" "$a" "$p" "${g:-}" "$c" "$m" "$t" "$mark"
     done
 }
 
@@ -50,6 +53,25 @@ rsk_preset_field() {
     local n="$1" field="$2"
     local var="RSK_PRESET_${n}_${field}"
     printf '%s' "${!var:-}"
+}
+
+# Resolve the configured default_preset (a preset NAME or a 1-based index) to a
+# numeric index. Used for a bare `v`/`p` with no preset argument. Falls back to
+# preset 1 if default_preset is unset, empty, or does not match any preset.
+rsk_default_preset_idx() {
+    local d="${RSK_DEFAULT_PRESET:-}"
+    [[ -z "$d" ]] && { echo 1; return; }
+    if [[ "$d" =~ ^[0-9]+$ ]]; then
+        echo "$d"; return
+    fi
+    local i
+    for ((i = 1; i <= ${RSK_PRESET_COUNT:-0}; i++)); do
+        if [[ "$(rsk_preset_field "$i" NAME)" == "$d" ]]; then
+            echo "$i"; return
+        fi
+    done
+    echo "Warning: default_preset '$d' not found among presets; using preset 1." >&2
+    echo 1
 }
 
 # Parse args into RSK_PRESET_IDX, RSK_OVERRIDE_*, RSK_LIST, RSK_HELP, RSK_KEEP_RENDERED.
@@ -94,6 +116,13 @@ rsk_parse_args() {
                 ;;
         esac
     done
+
+    # No positional preset given -> fall back to the configured default_preset
+    # (name or index; see rsk_default_preset_idx). `v 2` etc. still win because
+    # they set saw_preset above.
+    if [[ $saw_preset -eq 0 ]]; then
+        RSK_PRESET_IDX="$(rsk_default_preset_idx)"
+    fi
 }
 
 # Resolve preset + overrides into RSK_JOB_* env vars used by templates.

@@ -33,8 +33,13 @@ interactive:
   mem: 24G
   time: "48:00:00"               # always quote HH:MM:SS (else YAML parses as sexagesimal)
 
-# Presets for `v` and `p`. First preset is the default
-# (i.e. bare `v` == `v 1`). Pass `v 2` etc. to use other presets.
+# Which preset a bare `v` / `p` (no numeric argument) uses. Accepts a preset
+# NAME or a 1-based index. If unset/empty or it matches no preset, falls back
+# to the first preset. A numeric `v 2` always overrides this.
+default_preset: gpu_h100
+
+# Presets for `v` and `p`. A bare `v` uses `default_preset` above (falling back
+# to the first preset). Pass `v 2` etc. to select a preset by index.
 # Override individual fields per call with --account, --partition, --gres,
 # --cores, --mem, --time, --env.
 presets:
