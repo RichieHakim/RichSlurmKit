@@ -28,6 +28,7 @@ fi
 echo "Scratch dir: ${MY_SCRATCH}"
 
 ENV="${RSK_JOB_ENV}"
+echo "Conda env (resolved from config/preset/--env): ${ENV}"
 JOBID="${SLURM_JOB_ID:-$RANDOM}"
 SESSION="jupyter-${JOBID}"
 TUNNEL_NAME="tunnel-${JOBID}"
