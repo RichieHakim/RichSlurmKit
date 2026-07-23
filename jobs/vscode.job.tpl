@@ -71,6 +71,13 @@ curl -Lk 'https://update.code.visualstudio.com/latest/cli-alpine-x64/stable' \
 CLI_DATA_DIR="${MY_SCRATCH}/vscode-cli-data"
 mkdir -p "${CLI_DATA_DIR}"
 
+# Disable libsecret/keychain for EVERY `code` call below (login, show, tunnel,
+# unregister), not just login: there's no dbus/keyring on a compute node, and a
+# consistent setting keeps token.json plaintext and portable across jobs/nodes.
+# If a mid-run token refresh ran without this, it could rewrite token.json in a
+# host-bound form that the next job can't reuse.
+export VSCODE_CLI_DISABLE_KEYCHAIN_ENCRYPT=1
+
 # --- Persist the GitHub tunnel auth token across jobs (one-time device login) --
 # The login token is cached as token.json inside the CLI data dir, but that dir
 # lives on per-job scratch and is discarded at job end, so each new job would
@@ -86,12 +93,19 @@ if [[ -f "${AUTH_STORE}/token.json" ]]; then
     install -m 600 "${AUTH_STORE}/token.json" "${CLI_DATA_DIR}/token.json"
 fi
 
-# GitHub device-login. A no-op (no paste) when the seeded token is still valid.
-# KEYCHAIN_ENCRYPT=1 skips libsecret/keychain (no dbus on compute node), which
-# also keeps token.json plaintext-portable across jobs.
-VSCODE_CLI_DISABLE_KEYCHAIN_ENCRYPT=1 \
+# GitHub device-login -- ONLY when not already authenticated. `tunnel user login`
+# is NOT a no-op when a valid token is present: it unconditionally re-runs the
+# device-code flow and blocks for a paste, so calling it every job re-prompts
+# even though the seeded token.json is valid. `tunnel user show` exits 0
+# ("logged in ...") when the seeded token works and 1 ("not logged in")
+# otherwise, so it's the correct guard (the `if` also spares us from errexit).
+if "${MY_SCRATCH}/code" --cli-data-dir "${CLI_DATA_DIR}" tunnel user show >/dev/null 2>&1; then
+    echo "GitHub tunnel auth: reusing persisted login (no device code needed)."
+else
+    echo "GitHub tunnel auth: no valid token found; starting one-time device login."
     "${MY_SCRATCH}/code" --cli-data-dir "${CLI_DATA_DIR}" \
         tunnel user login --provider github
+fi
 
 # Save the token right after login -- NOT only at exit: SLURM time-limit/scancel
 # sends SIGKILL, which skips the EXIT trap, so a first login or refresh captured
