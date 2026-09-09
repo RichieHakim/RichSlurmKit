@@ -6,35 +6,77 @@
 # focus blue, so a stale client left over from a reloaded/resized terminal makes
 # a reattach render small with a blue border. zsolo clears those stragglers.
 #
-# SAFE BY CONSTRUCTION: it only ever SIGTERMs foreground `zellij` client/launcher
-# processes (`zellij a|attach ...`, `zellij -s ...`); it NEVER touches a
-# `zellij --server` (which hosts the session and everything running in its panes,
-# e.g. a live `claude`). Detaching a client doesn't stop those programs -- the
-# panes' PTYs belong to the server, not the client -- so nothing is lost; reattach
-# to get any view back.
+# SAFE: it never signals a `zellij --server`. That is the load-bearing rule --
+# the server hosts the session and owns the panes' PTYs, so a running `claude`
+# belongs to the server, not to any client. Killing a client closes a *view* and
+# cannot stop a running program. Reattach to get the view back.
+#
+# TERM then KILL: a client whose terminal has stopped draining its pty (closed
+# VS Code window, dropped ssh) never finishes zellij's graceful detach, so
+# SIGTERM leaves it attached -- precisely the stale client this script targets.
+# TERM still goes first so a live client detaches cleanly; KILL is the fallback.
+#
+# NOTE: this is machine-wide, not per-session. It detaches every client you have
+# on this node, including healthy ones you are using. That is the point (you are
+# about to become the sole client), but it means running zsolo while working in
+# another session will drop you out of it.
 #
 # No-op when run from INSIDE a session ($ZELLIJ set): it can't dedup without
 # detaching the caller itself. This makes it safe to chain before an attach.
 #
 # Usage: zsolo        (used internally by zz/zzc/zzcr; also fine to run directly)
 
-# Inside a session already -> can't safely dedup; do nothing.
 [ -n "$ZELLIJ" ] && exit 0
 
-killed=""
+# A zombie has released the session, so it counts as detached. `kill -0` would
+# call it alive and make the report claim a failure that didn't happen.
+alive() {
+    case "$(awk '{print $3}' "/proc/$1/stat" 2>/dev/null)" in
+        ""|Z) return 1 ;;
+        *)    return 0 ;;
+    esac
+}
+
+targets=""
 for p in $(pgrep -u "$USER" -x zellij 2>/dev/null); do
     args=$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null)
     case " $args " in
         *" --server "*) : ;;                       # session server -> preserve
-        *) if kill "$p" 2>/dev/null; then killed="$killed $p"; fi ;;
+        *) targets="$targets $p" ;;
     esac
 done
+[ -z "$targets" ] && exit 0
+
+survivors() {
+    out=""
+    for p in $targets; do alive "$p" && out="$out $p"; done
+    echo $out
+}
+
+for p in $targets; do kill -TERM "$p" 2>/dev/null; done
+for _ in 1 2 3 4 5 6 7 8; do            # ~2s for a graceful detach
+    [ -z "$(survivors)" ] && break
+    sleep 0.25
+done
+
+stubborn=$(survivors)
+if [ -n "$stubborn" ]; then
+    for p in $stubborn; do kill -KILL "$p" 2>/dev/null; done
+    sleep 0.5
+fi
+
+# Report deaths, not deliveries: `kill` returns 0 once the signal is sent, so the
+# old version announced "detached" for clients that were still attached, which
+# sends you debugging the wrong thing when the reattach still comes up clamped.
+detached=""
+for p in $targets; do alive "$p" || detached="$detached $p"; done
+stuck=$(survivors)
 
 # Let the servers register the disconnects before the caller attaches, so we
 # don't briefly re-trigger the smallest-client clamp during the handoff.
-if [ -n "$killed" ]; then
-    sleep 0.25
-    echo "zsolo: detached$killed" >&2
-fi
+[ -n "$detached" ] && sleep 0.25
+
+[ -n "$detached" ] && echo "zsolo: detached$detached" >&2
+[ -n "$stuck" ] && echo "zsolo: WARNING: client(s) $stuck survived SIGKILL, still attached" >&2
 
 exit 0

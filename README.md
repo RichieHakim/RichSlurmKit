@@ -123,11 +123,19 @@ watching one session while working in another):
 The shared dedup lives in **`zsolo`** (run it directly to just clear stale
 clients). It's safe: detaching a client never stops the programs in a session's
 panes (a running `claude` keeps going) — those are owned by the session's
-`zellij --server`, which `zsolo` never touches. It only ever SIGTERMs foreground
-`zellij` client processes; reattach to get any view back. Run a `zz*` command
-from a **plain terminal** (the fresh one a reload gives you) — that's where the
-dedup fires; from *inside* a session it can't dedup itself, so it just attaches/
-switches.
+`zellij --server`, which `zsolo` never touches. It signals only `zellij` client
+processes: SIGTERM first, then SIGKILL for any client still attached ~2s later.
+The escalation is required — a client whose terminal has stopped draining its
+pty (closed VS Code window, dropped ssh) never finishes zellij's graceful
+detach and ignores SIGTERM, which is exactly the stale client you're clearing.
+Reattach to get any view back. Run a `zz*` command from a **plain terminal**
+(the fresh one a reload gives you) — that's where the dedup fires; from *inside*
+a session it can't dedup itself, so it just attaches/switches.
+
+`zsolo` is **node-wide**: it detaches every client you have on that machine, not
+just the session you're heading for. That's the intent when you're reconnecting
+after a reload, but it means running it while you're working in another session
+will drop you out of that one too.
 
 `v` and `p` share a CLI:
 
