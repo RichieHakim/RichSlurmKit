@@ -85,3 +85,18 @@ keybinds {
 
 // Keep plenty of history available to scroll back through (default is 10000).
 scroll_buffer_size 50000
+
+// ---------------------------------------------------------------------------
+// Clicking file paths
+// ---------------------------------------------------------------------------
+// Inside zellij, Cmd/Ctrl+click on a plain file path does nothing (VS Code's
+// own path detection doesn't fire through zellij; URLs still work because they
+// arrive as OSC 8 hyperlinks). zellij 0.44+ has its own: ALT+CLICK (Option+click
+// on macOS) a path and its built-in `link` plugin opens it in this editor, in a
+// floating pane. Relative paths resolve against the pane's cwd.
+//
+// `zopen` (RichSlurmKit bin/) opens the file in VS Code without --wait, so the
+// floating pane closes immediately. A bare name because zellij doesn't expand
+// $HOME/env vars here; it's resolved on PATH. Line numbers are not passed
+// (zellij only forwards them to editors named vim/nvim/emacs/nano/kak/hx).
+scrollback_editor "zopen"

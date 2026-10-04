@@ -1,0 +1,15 @@
+#!/bin/bash
+# zopen -- open files in VS Code and return immediately (no --wait).
+#
+# zellij/config.kdl sets this as zellij's `scrollback_editor`, which is what
+# zellij's built-in `link` plugin runs when you Alt+click (Option+click on
+# macOS) a file path inside a pane. zellij runs the editor in a floating pane
+# that closes when the editor exits. With EDITOR="code --wait" that pane sits
+# there until the VS Code tab is closed; this opens the file and exits.
+#
+# Goes through the self-healing `code` wrapper next to this script, so it keeps
+# working after VS Code reconnects rotate the IPC socket.
+#
+# Usage: zopen <file>...
+
+exec "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/code" "$@"
