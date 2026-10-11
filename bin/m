@@ -1,0 +1,30 @@
+#!/bin/bash
+# m -- zmx, the trial replacement for `z` (zellij). zmx keeps sessions alive
+# without a terminal emulator in the middle, so VS Code's own scrollback, copy
+# and path clicking keep working. Arguments pass straight through to zmx,
+# except:
+#   m                 list sessions (and ones from ended jobs `mrevive` can restore)
+#   m k|kill NAME...  kill sessions and forget their records
+# Common: m a NAME (attach/create), m hi NAME (scrollback), m d (detach all
+# clients of the current session). Ctrl+\ detaches this terminal.
+# Usage: m [zmx args...]
+
+set -e
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib/mx.sh"
+
+case "${1:-}" in
+    "")
+        rsk_mx_snapshot
+        exec "$RSK_MX_PY" ls
+        ;;
+    k|kill)
+        shift
+        zmx kill "$@"
+        names=()
+        for a in "$@"; do [[ "$a" == -* ]] || names+=("$a"); done
+        "$RSK_MX_PY" forget "${names[@]}" >/dev/null
+        ;;
+    *)
+        exec zmx "$@"
+        ;;
+esac

@@ -12,3 +12,7 @@ esac
 
 source "$RSK_ROOT/shell/aliases.sh"
 source "$RSK_ROOT/shell/completions.sh"  # tab-complete session names for z/zc/zcr
+
+# Same zmx socket dir in every shell on a node (see lib/mx.sh), so a plain
+# `zmx` sees the sessions the m* commands create.
+export ZMX_DIR="${ZMX_DIR:-/tmp/zmx-$UID}"

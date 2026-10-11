@@ -1,0 +1,4 @@
+#!/bin/bash
+# mcr -- like `mc`, but launches `cr` (claude --resume picker).
+# Usage: mcr [name]
+RSK_MC_LAUNCH=cr exec "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/mc" "$@"

@@ -71,6 +71,9 @@ v                # submit preset 1
 | `zz [name]` | **Solo-attach.** Detaches all *other* zellij clients first, then attaches (creating the session if needed), so you always get a clean, full-size session with a green border. Use this instead of `z a` when a reattach comes up small with a blue border. Safe — it only detaches client *views*; programs running in sessions (e.g. a live `claude`) keep running, as they're hosted by the session's `--server`. See note below. |
 | `zc [name]` / `zcr [name]` | Like `tc` / `tcr` but using zellij. Launches `c` / `cr` in a new session, auto-naming `claude_N`. If the named session already exists, just attaches (coactively). |
 | `zzc [name]` / `zzcr [name]` | **Solo** variants of `zc` / `zcr`: detach all *other* zellij clients first, then create-or-attach the claude session — so you reconnect full-size with a green border. Same safety as `zz`. |
+| `m [args...]` | Alias for [zmx](https://github.com/neurosnap/zmx), the trial replacement for `z`. Bare `m` lists sessions; `m a <name>` attaches (creating it if needed); `m k <name>` kills it. See [zmx](#zmx-m-trial-replacement-for-zellij) below. |
+| `mc [name]` / `mcr [name]` | Like `zc` / `zcr` but using zmx. Auto-names `claude_N`; attaches if the session exists. |
+| `mrevive` | List claude sessions lost when their Slurm job ended; `mrevive all` (or `mrevive <name>...`) recreates them with `claude -r <id>` in their old directory. |
 
 ### zellij keybindings
 
@@ -137,11 +140,54 @@ just the session you're heading for. That's the intent when you're reconnecting
 after a reload, but it means running it while you're working in another session
 will drop you out of that one too.
 
+### zmx (`m*`): trial replacement for zellij
+
+zellij draws every pane through its own terminal emulator, and that layer is
+the likely cause of the slow scrolling, the broken copy and path clicking, and
+the small-and-blue reattach. Claude Code also turns off its fast scrolling whenever
+it sees tmux or zellij. [zmx](https://github.com/neurosnap/zmx) only keeps
+sessions alive: output goes straight to your terminal, so VS Code's own
+scrollback, selection and Cmd+click on paths should work as they do without a
+multiplexer. There are no panes or tabs; use VS Code's terminal tabs and splits.
+
+| | |
+|---|---|
+| `mc [name]` | new session running `c` (or attach if it exists) |
+| `m` | list sessions here, with each claude's title and status |
+| `m a <name>` | attach (from inside a session: switch this terminal) |
+| `Ctrl+\` | detach this terminal (or just close the terminal) |
+| `m d` | inside a session: detach every client of it |
+| `m hi <name>` | print a session's scrollback |
+| `m k <name>` | kill a session |
+
+Several terminals can attach to one session; the size follows whichever one
+typed last. `lib/zmx_install.sh` (run by `install.sh`) installs a pinned zmx
+build. It never replaces a different installed version while sessions are
+live, because zmx's README warns that a version change can kill them.
+
+**Reviving after a job ends.** Nothing survives the end of a Slurm job. The
+repo's `c` and `cr` add a small Claude Code hook when they're inside a zmx or
+zellij session (`mc`, `mcr` and `mrevive` launch the repo's `c` by full path,
+so a personal `c` earlier on PATH doesn't skip it), and every `m*` command also
+snapshots the live claudes on the node,
+so each session's conversation id, directory, host and job are recorded in
+`~/.local/state/richslurmkit/m-sessions/`. In the next job, `mrevive` shows
+them and `mrevive all` recreates each one (detached) with `c -r <id>`. A
+session whose job is still running elsewhere is never revived, so two claudes
+never share a conversation. Sessions you left with `/exit` show as `exited`;
+name them to revive anyway.
+
+**Long jobs.** The `agent_host` preset (`v agent_host`) is a CPU job for the
+tunnel and your claude sessions: 8 cores, 32G, 14 days, on `intermediate` or
+`unrestricted`, whichever starts first. Heavy work should still go to its own
+`sbatch` job: everything in this one shares its 32G.
+
 `v` and `p` share a CLI:
 
 ```
 v               # preset 1, all defaults
 v 3             # preset 3
+v agent_host    # a preset by name
 v 3 --account foo --partition shared
 v --list        # show presets
 v --help        # full flag list
@@ -164,4 +210,7 @@ See `config.example.yaml` for the schema and required edits.
 - SLURM logs + `--keep-rendered` job files: `<repo>/logs/` (gitignored).
   Sibling of `config.yaml`; the absolute path is printed by `v`/`p` on submit.
 - Cached `devtunnel` binary (auto-installed by `vclean`): `~/.local/share/richslurmkit/bin/devtunnel`
+- zmx binary: `~/.local/share/richslurmkit/zmx/<version>/zmx`, linked from `~/.local/bin/zmx`.
+  Session sockets and logs: `/tmp/zmx-<uid>/` on each node.
+- `mrevive` records: `~/.local/state/richslurmkit/m-sessions/`.
 - Rendered job templates (per-submit): `/tmp/rsk-*.job` (auto-deleted)

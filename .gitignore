@@ -17,3 +17,6 @@
 # NFS silly-rename files: left behind when an open file is replaced/deleted on
 # an NFS mount (e.g. editing bin/zcr while a zcr process still has it open).
 .nfs*
+
+# Python bytecode (lib/mx.py when imported)
+__pycache__/

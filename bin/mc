@@ -1,0 +1,29 @@
+#!/bin/bash
+# mc -- create a zmx session and launch claude (`c`) in it.
+# Usage: mc [name]
+# Without a name, picks the lowest unused claude_N.
+# If the named session already exists, just attaches (claude is not relaunched).
+# Run from inside a zmx session, it switches this terminal to the other session.
+
+set -e
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib/mx.sh"
+
+# `mcr` reuses this script with cr instead of c.
+launch="${RSK_MC_LAUNCH:-c}"
+unset RSK_MC_LAUNCH
+
+# Optional leading `a`/`attach`, for muscle-memory parity with `m a <name>`.
+case "${1:-}" in a|attach) shift ;; esac
+
+name="${1:-$(rsk_mx_next_name)}"
+rsk_mx_snapshot
+
+if rsk_mx_exists "$name"; then
+    exec zmx attach "$name"
+fi
+
+# By absolute path: another `c` earlier on PATH (e.g. a personal copy) would
+# skip the hook that records the session for `mrevive`. bash -ic gives the
+# usual interactive environment; exec bash -i keeps the session alive after
+# claude exits.
+exec zmx attach "$name" bash -ic "$(printf '%q' "$_rsk_mx_root/bin/$launch"); exec bash -i"

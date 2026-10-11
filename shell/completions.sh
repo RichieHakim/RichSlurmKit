@@ -1,4 +1,5 @@
-# Bash tab-completion for the zellij wrappers (z / zc / zcr / zz / zzc / zzcr).
+# Bash tab-completion for the zellij wrappers (z / zc / zcr / zz / zzc / zzcr)
+# and the zmx wrappers (m / mc / mcr / mrevive).
 # Completes live session names so you can do e.g.  `z a my_ses<TAB>`.
 # Sourced from shellrc.sh. Bash only (guarded below); harmless if skipped.
 
@@ -64,5 +65,48 @@ _rsk_complete_zc() {
     COMPREPLY=( $(compgen -W "$(_rsk_zellij_sessions)" -- "$cur") )
 }
 complete -F _rsk_complete_zc zc zcr zz zzc zzcr
+
+# --- zmx wrappers (m / mc / mcr / mrevive) ---------------------------------
+
+_rsk_zmx_sessions() {
+    ZMX_DIR="${ZMX_DIR:-/tmp/zmx-$UID}" zmx list --short 2>/dev/null
+}
+
+# `m` passes through to zmx: complete its subcommands (long and short forms)
+# first, then session names for the subcommands that take one.
+_rsk_complete_m() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    if [ "$COMP_CWORD" -eq 1 ]; then
+        COMPREPLY=( $(compgen -W "\
+attach run send print write detach list ls kill history get set clear print-env \
+wait tail completions version help a r s p wr d l k g cl hi w t c v h" -- "$cur") )
+        return
+    fi
+    case "${COMP_WORDS[1]}" in
+        a|attach|r|run|s|send|p|print|wr|write|k|kill|hi|history|g|get|set|cl|clear|print-env|w|wait|t|tail)
+            COMPREPLY=( $(compgen -W "$(_rsk_zmx_sessions)" -- "$cur") ) ;;
+    esac
+}
+complete -F _rsk_complete_m m
+
+_rsk_complete_mc() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    [ "$COMP_CWORD" -eq 1 ] || return
+    COMPREPLY=( $(compgen -W "$(_rsk_zmx_sessions)" -- "$cur") )
+}
+complete -F _rsk_complete_mc mc mcr
+
+# mrevive: recorded session names (one JSON file each) plus its options.
+_rsk_complete_mrevive() {
+    local cur="${COMP_WORDS[COMP_CWORD]}" dir names f
+    dir="${RSK_M_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/richslurmkit/m-sessions}"
+    names=""
+    for f in "$dir"/*.json; do
+        [ -e "$f" ] || continue
+        f="${f##*/}"; names+=" ${f%.json}"
+    done
+    COMPREPLY=( $(compgen -W "all --forget --dry-run$names" -- "$cur") )
+}
+complete -F _rsk_complete_mrevive mrevive
 
 fi

@@ -103,7 +103,15 @@ else
     green "Linked zellij config: $zellij_cfg_dst -> $zellij_cfg_src"
 fi
 
-# 6. Detect whether config still has REPLACE-me placeholders; tailor the
+# 6. zmx, for the m* commands (session persistence without zellij's terminal
+# emulator in the middle). Optional: a failure here only skips m*.
+if "$RSK_ROOT/lib/zmx_install.sh"; then
+    green "zmx ready (m / mc / mcr / mrevive)"
+else
+    yellow "zmx not installed; the m* commands won't work until it is."
+fi
+
+# 7. Detect whether config still has REPLACE-me placeholders; tailor the
 # closing message to whichever state the user is actually in.
 needs_edits=0
 if grep -qE 'YOUR_[A-Z_]+' "$RSK_CONFIG"; then

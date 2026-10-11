@@ -91,3 +91,14 @@ presets:
     cores: 16
     mem: 100G
     time: "0-48:00:00"
+
+  # Long-lived CPU host for Claude Code sessions (zmx `m*` helpers) + the VS Code
+  # tunnel. Pick a partition that allows multi-day runs (on FASRC Cannon:
+  # `intermediate`, up to 14 days). Select with `v agent_host`.
+  - name: agent_host
+    account:   YOUR_CPU_ACCOUNT          # REPLACE
+    partition: YOUR_LONG_CPU_PARTITION   # REPLACE
+    gres: ""
+    cores: 8
+    mem: 32G
+    time: "14-00:00:00"

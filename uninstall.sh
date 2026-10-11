@@ -44,6 +44,11 @@ fi
 
 if [[ $purge -eq 1 ]]; then
     rm -f "$RSK_ROOT/config.yaml"
+    # The zmx binary lives in the data dir below; drop our symlink to it.
+    zmx_link="$HOME/.local/bin/zmx"
+    if [[ -L "$zmx_link" && "$(readlink "$zmx_link")" == "${XDG_DATA_HOME:-$HOME/.local/share}/richslurmkit/"* ]]; then
+        rm -f "$zmx_link"
+    fi
     rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/richslurmkit"
     echo "Purged config.yaml and ~/.local/share/richslurmkit/"
     echo "(SLURM logs in ~/.local/state/richslurmkit/ left in place.)"

@@ -1,2 +1,2 @@
 #!/bin/bash
-claude --dangerously-skip-permissions -r "$@"
+exec "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/c" -r "$@"

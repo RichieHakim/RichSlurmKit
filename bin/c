@@ -1,2 +1,11 @@
 #!/bin/bash
-claude --dangerously-skip-permissions "$@"
+# claude without permission prompts. Inside a zmx or zellij session, also load
+# lib/mx.py as a SessionStart/SessionEnd hook, so `mrevive` knows which
+# conversation runs in which session (it follows /clear and /resume).
+extra=()
+if [[ -n "${ZMX_SESSION:-}${ZELLIJ_SESSION_NAME:-}" ]]; then
+    hook="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)/lib/mx.py hook"
+    entry="[{\"hooks\":[{\"type\":\"command\",\"command\":\"$hook\"}]}]"
+    extra=(--settings "{\"hooks\":{\"SessionStart\":$entry,\"SessionEnd\":$entry}}")
+fi
+claude --dangerously-skip-permissions "${extra[@]}" "$@"

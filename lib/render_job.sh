@@ -7,7 +7,8 @@ rsk_print_job_usage() {
     cat <<EOF
 Usage: ${RSK_CMD_NAME:-v|p} [PRESET] [OPTIONS]
 
-  PRESET                       Numeric preset index (default 1).
+  PRESET                       Preset index or name (see --list). Default:
+                               default_preset from config.yaml.
 
 Options:
   --account NAME               Override SLURM account.
@@ -55,6 +56,17 @@ rsk_preset_field() {
     printf '%s' "${!var:-}"
 }
 
+# Print the 1-based index of the preset named $1; return 1 if there is none.
+rsk_preset_idx_by_name() {
+    local i
+    for ((i = 1; i <= ${RSK_PRESET_COUNT:-0}; i++)); do
+        if [[ "$(rsk_preset_field "$i" NAME)" == "$1" ]]; then
+            echo "$i"; return 0
+        fi
+    done
+    return 1
+}
+
 # Resolve the configured default_preset (a preset NAME or a 1-based index) to a
 # numeric index. Used for a bare `v`/`p` with no preset argument. Falls back to
 # preset 1 if default_preset is unset, empty, or does not match any preset.
@@ -89,7 +101,7 @@ rsk_parse_args() {
     RSK_OVERRIDE_TIME=""
     RSK_OVERRIDE_ENV=""
 
-    local saw_preset=0
+    local saw_preset=0 _idx
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --list)           RSK_LIST=1; shift ;;
@@ -107,6 +119,10 @@ rsk_parse_args() {
             *)
                 if [[ $saw_preset -eq 0 && "$1" =~ ^[0-9]+$ ]]; then
                     RSK_PRESET_IDX="$1"
+                    saw_preset=1
+                    shift
+                elif [[ $saw_preset -eq 0 ]] && _idx="$(rsk_preset_idx_by_name "$1")"; then
+                    RSK_PRESET_IDX="$_idx"
                     saw_preset=1
                     shift
                 else
