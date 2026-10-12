@@ -1,8 +1,7 @@
 #!/bin/bash
 # RichSlurmKit installer. Non-interactive on a clean install.
-# - Verifies conda, envsubst, PyYAML
+# - Verifies envsubst and PyYAML (installs PyYAML if missing); warns if no conda
 # - Creates config.yaml from config.example.yaml if missing
-# - Auto-detects login_host (best-effort) and writes it to config.yaml
 # - Adds a marker block to ~/.bashrc that sources shell/shellrc.sh
 # - Installs zmx (for `m`), and links the zellij config if zellij is installed
 set -euo pipefail
@@ -15,22 +14,14 @@ green() { printf '\033[32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 red() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 
-# In-place sed replacement of top-level scalars (preserves comments).
-sed_set() {
-    local key="$1" value="$2"
-    local esc; esc=$(printf '%s' "$value" | sed -e 's/[&#]/\\&/g')
-    sed -i -E "s#^(${key}:)[[:space:]].*#\1 ${esc}#" "$RSK_CONFIG"
-}
-
 green "=== RichSlurmKit installer ==="
 echo "Repo: $RSK_ROOT"
 echo
 
 # 1. Tool checks
 if ! command -v conda &>/dev/null; then
-    red "Error: 'conda' is not on your PATH."
-    red "Install miniconda from https://docs.conda.io/projects/miniconda/en/latest/ and re-run."
-    exit 1
+    yellow "Warning: 'conda' is not on your PATH. v and p activate an env inside the job"
+    yellow "  with 'source activate <env>' unless you set 'activate:' in config.yaml."
 fi
 if ! command -v envsubst &>/dev/null; then
     red "Error: 'envsubst' is not on your PATH (it ships with the gettext package)."
@@ -40,9 +31,13 @@ fi
 python_bin="$(command -v python3 || command -v python)"
 if ! "$python_bin" -c 'import yaml' &>/dev/null; then
     yellow "Installing PyYAML (to your user pip site-packages, no admin needed)..."
-    "$python_bin" -m pip install --user pyyaml >/dev/null 2>&1
+    if ! "$python_bin" -m pip install --user pyyaml >/dev/null 2>&1; then
+        red "Error: could not install PyYAML with: $python_bin -m pip install --user pyyaml"
+        red "Install it another way (e.g. conda install pyyaml) and re-run."
+        exit 1
+    fi
 fi
-green "Dependencies OK (conda, envsubst, PyYAML)"
+green "Dependencies OK (envsubst, PyYAML)"
 
 # 2. config.yaml
 config_was_new=0

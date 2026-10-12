@@ -1,11 +1,24 @@
 #!/bin/bash
-# claude without permission prompts. Inside a zmx or zellij session, also load
-# lib/mx.py as a SessionStart/SessionEnd hook, so `mrevive` knows which
-# conversation runs in which session (it follows /clear and /resume).
+# claude, plus `claude_flags` from config.yaml (e.g. --dangerously-skip-permissions).
+# Inside a zmx or zellij session, also load lib/mx.py as a SessionStart/SessionEnd
+# hook, so `mrevive` knows which conversation runs in which session (it follows
+# /clear and /resume). Without a readable config this is plain `claude`.
+root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+
+flags=()
+config="${RSK_CONFIG:-$root/config.yaml}"
+py="$(command -v python3 || command -v python)"
+RSK_CLAUDE_FLAGS=""
+if [[ -f "$config" && -n "$py" ]]; then
+    line="$("$py" "$root/lib/load_config.py" "$config" 2>/dev/null | grep '^RSK_CLAUDE_FLAGS=')"
+    [[ -n "$line" ]] && eval "$line"
+    read -ra flags <<< "${RSK_CLAUDE_FLAGS:-}"
+fi
+
 extra=()
 if [[ -n "${ZMX_SESSION:-}${ZELLIJ_SESSION_NAME:-}" ]]; then
-    hook="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)/lib/mx.py hook"
+    hook="$root/lib/mx.py hook"
     entry="[{\"hooks\":[{\"type\":\"command\",\"command\":\"$hook\"}]}]"
     extra=(--settings "{\"hooks\":{\"SessionStart\":$entry,\"SessionEnd\":$entry}}")
 fi
-claude --dangerously-skip-permissions "${extra[@]}" "$@"
+claude "${flags[@]}" "${extra[@]}" "$@"

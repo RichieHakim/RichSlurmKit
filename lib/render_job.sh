@@ -166,16 +166,26 @@ rsk_resolve_job_vars() {
     RSK_JOB_USER="$USER"
     RSK_JOB_LOGIN_HOST="${RSK_LOGIN_HOST:-}"
 
-    # --gres is optional; render the whole SBATCH line conditionally.
+    # --gres and --account are optional; render each SBATCH line conditionally.
     if [[ -n "$RSK_JOB_GRES" ]]; then
         RSK_JOB_GRES_LINE="#SBATCH --gres=${RSK_JOB_GRES}"
     else
         RSK_JOB_GRES_LINE=""
     fi
+    if [[ -n "$RSK_JOB_ACCOUNT" ]]; then
+        RSK_JOB_ACCOUNT_LINE="#SBATCH --account=${RSK_JOB_ACCOUNT}"
+    else
+        RSK_JOB_ACCOUNT_LINE=""
+    fi
 
-    export RSK_JOB_NAME RSK_JOB_ACCOUNT RSK_JOB_PARTITION RSK_JOB_GRES \
-        RSK_JOB_GRES_LINE RSK_JOB_CORES RSK_JOB_MEM RSK_JOB_TIME RSK_JOB_ENV \
-        RSK_JOB_USER RSK_JOB_LOGIN_HOST
+    # Shell line that activates the env inside the job: config `activate:`,
+    # with {env} replaced by the resolved env name.
+    local activate="${RSK_ACTIVATE:-source activate {env\}}"
+    RSK_JOB_ACTIVATE="${activate//\{env\}/$(printf '%q' "$RSK_JOB_ENV")}"
+
+    export RSK_JOB_NAME RSK_JOB_ACCOUNT RSK_JOB_ACCOUNT_LINE RSK_JOB_PARTITION \
+        RSK_JOB_GRES RSK_JOB_GRES_LINE RSK_JOB_CORES RSK_JOB_MEM RSK_JOB_TIME \
+        RSK_JOB_ENV RSK_JOB_ACTIVATE RSK_JOB_USER RSK_JOB_LOGIN_HOST
 }
 
 # Human-readable summary of what will be requested from SLURM. Call after
@@ -194,7 +204,7 @@ rsk_print_job_summary() {
     [[ -n "$RSK_OVERRIDE_ENV"       ]] && mk_env="  (override)"
 
     echo "=== Session request (preset ${RSK_PRESET_IDX}: ${RSK_JOB_NAME}) ==="
-    printf "  %-13s %s%s\n" "Account:"    "$RSK_JOB_ACCOUNT"        "$mk_account"
+    printf "  %-13s %s%s\n" "Account:"    "${RSK_JOB_ACCOUNT:-none}" "$mk_account"
     printf "  %-13s %s%s\n" "Partition:"  "$RSK_JOB_PARTITION"      "$mk_partition"
     printf "  %-13s %s%s\n" "GRES:"       "${RSK_JOB_GRES:-none}"   "$mk_gres"
     printf "  %-13s %s%s\n" "CPU cores:"  "$RSK_JOB_CORES"          "$mk_cores"
@@ -211,6 +221,6 @@ rsk_print_job_summary() {
 rsk_render_template() {
     local tpl="$1"
     local out="$2"
-    local allow='${RSK_JOB_ACCOUNT} ${RSK_JOB_TIME} ${RSK_JOB_PARTITION} ${RSK_JOB_GRES} ${RSK_JOB_GRES_LINE} ${RSK_JOB_CORES} ${RSK_JOB_MEM} ${RSK_JOB_ENV} ${RSK_JOB_USER} ${RSK_JOB_LOGIN_HOST}'
+    local allow='${RSK_JOB_ACCOUNT} ${RSK_JOB_ACCOUNT_LINE} ${RSK_JOB_ACTIVATE} ${RSK_JOB_TIME} ${RSK_JOB_PARTITION} ${RSK_JOB_GRES} ${RSK_JOB_GRES_LINE} ${RSK_JOB_CORES} ${RSK_JOB_MEM} ${RSK_JOB_ENV} ${RSK_JOB_USER} ${RSK_JOB_LOGIN_HOST}'
     envsubst "$allow" < "$tpl" > "$out"
 }

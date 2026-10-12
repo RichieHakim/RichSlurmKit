@@ -10,6 +10,12 @@ case ":$PATH:" in
     *) export PATH="$RSK_ROOT/bin:$PATH" ;;
 esac
 
+# zmx (for m*) installs to ~/.local/bin. Add it, last, if the system didn't.
+case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$PATH:$HOME/.local/bin" ;;
+esac
+
 source "$RSK_ROOT/shell/aliases.sh"
 source "$RSK_ROOT/shell/completions.sh"  # tab-complete session names for z/zc/zcr
 

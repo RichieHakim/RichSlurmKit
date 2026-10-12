@@ -10,15 +10,17 @@
 # call, then hands off to the real `code` further down PATH. Net effect: `code`
 # (and Ctrl+G) keep working across reconnects with no manual fix or restart.
 #
-# Must sit ahead of VS Code's remote-cli on PATH to take effect (we reach it via a
-# symlink from ~/scripts/helpers, which precedes remote-cli).
+# Must sit ahead of VS Code's remote-cli on PATH to take effect; shellrc.sh puts
+# bin/ first.
 
-# Point at the most recently created VS Code IPC socket, if any exist.
-newest=$(ls -t /tmp/vscode-ipc-*.sock 2>/dev/null | head -1)
+# Point at your most recently modified VS Code IPC socket, if any exist. Only
+# your own: on a shared node /tmp also holds other users' sockets.
+newest=$(find /tmp -maxdepth 1 -name 'vscode-ipc-*.sock' -user "$(id -u)" \
+    -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
 [ -n "$newest" ] && export VSCODE_IPC_HOOK_CLI="$newest"
 
 # Find the next `code` on PATH that is not this wrapper (resolve symlinks so a
-# scripts/helpers -> repo symlink doesn't match itself and recurse).
+# symlink to this file elsewhere on PATH doesn't match itself and recurse).
 self=$(readlink -f "${BASH_SOURCE[0]:-$0}" 2>/dev/null)
 real=""
 IFS=':' read -ra _dirs <<< "$PATH"

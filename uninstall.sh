@@ -1,7 +1,8 @@
 #!/bin/bash
 # Uninstaller for RichSlurmKit.
 # Default: just remove the sentinel block from ~/.bashrc.
-# --purge: also remove config.yaml and the devtunnel binary.
+# --purge: also remove config.yaml, the zmx and devtunnel binaries, and the
+# saved VS Code tunnel login.
 set -euo pipefail
 
 RSK_ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
@@ -11,7 +12,7 @@ for arg in "$@"; do
         --purge) purge=1 ;;
         -h|--help)
             echo "Usage: ./uninstall.sh [--purge]"
-            echo "  --purge   Also delete config.yaml and ~/.local/share/richslurmkit/"
+            echo "  --purge   Also delete config.yaml and ~/.local/share/richslurmkit/ (binaries, tunnel login)"
             exit 0
             ;;
         *) echo "Unknown argument: $arg" >&2; exit 2 ;;
@@ -29,7 +30,9 @@ if [[ -f "$bashrc" ]] && grep -qF "$sentinel_start" "$bashrc"; then
         $0 == e { skip = 0; next }
         !skip
     ' "$bashrc" > "$tmp"
-    mv "$tmp" "$bashrc"
+    # Write through, so a symlinked ~/.bashrc stays a symlink with its mode.
+    cat "$tmp" > "$bashrc"
+    rm -f "$tmp"
     echo "Removed RichSlurmKit block from ~/.bashrc"
 else
     echo "No RichSlurmKit block found in ~/.bashrc"
@@ -50,8 +53,10 @@ if [[ $purge -eq 1 ]]; then
         rm -f "$zmx_link"
     fi
     rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/richslurmkit"
+    # The job template keeps the tunnel login here regardless of XDG_DATA_HOME.
+    rm -rf "$HOME/.local/share/richslurmkit/vscode-cli-auth"
     echo "Purged config.yaml and ~/.local/share/richslurmkit/"
-    echo "(SLURM logs in ~/.local/state/richslurmkit/ left in place.)"
+    echo "(Left in place: job logs in $RSK_ROOT/logs/, mrevive records in ~/.local/state/richslurmkit/.)"
 fi
 
 echo "Done. Re-source ~/.bashrc (or open a new shell) to clear PATH/aliases."

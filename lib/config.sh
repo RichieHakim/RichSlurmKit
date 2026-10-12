@@ -41,6 +41,8 @@ export RSK_USER
 RSK_STATE_DIR="$RSK_ROOT/logs"
 export RSK_STATE_DIR
 mkdir -p "$RSK_STATE_DIR"
+# The job logs hold Jupyter tokens: keep them private.
+chmod 700 "$RSK_STATE_DIR" 2>/dev/null || true
 
 # Where the devtunnel binary gets cached.
 RSK_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/richslurmkit"

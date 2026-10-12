@@ -11,7 +11,7 @@ source "$RSK_ROOT/lib/config.sh"
 cd "$RSK_STATE_DIR"
 
 find_jupyter_jobs() {
-    squeue --me --name=jupyter-tunnel --noheader --format="%i %M %N" 2>/dev/null
+    squeue -u "$USER" --name=jupyter-tunnel --noheader --format="%i %M %N" 2>/dev/null
 }
 
 if [[ $# -ge 1 ]]; then
@@ -84,4 +84,4 @@ echo "------------------------------------------------------------------"
 echo "Starting SSH tunnel (Ctrl-C to stop)..."
 
 exec ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -N -L "${port}:localhost:${port}" "$node"
+    -N -L "${port}:127.0.0.1:${port}" "$node"

@@ -62,7 +62,7 @@ fi
 printf '=== v session =================================================\n'
 printf '  job %s   state %s   elapsed %s\n' "${job_id:-?}" "$state" "$elapsed"
 printf '  preset %s   partition %s   env %s\n' "$preset" "$partition" "$env"
-printf '  node %s   session jupyter-%s / tunnel-%s\n' "$node" "${job_id:-?}" "${job_id:-?}"
+printf '  node %s   tunnel-%s   jupyter: tmux -L rsk-%s a\n' "$node" "${job_id:-?}" "${job_id:-?}"
 printf '  Jupyter URL   %s\n' "$url"
 printf '  Tunnel login  %s\n' "$auth"
 printf '===============================================================\n'

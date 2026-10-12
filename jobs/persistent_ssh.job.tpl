@@ -3,7 +3,7 @@
 # Rendered by RichSlurmKit from jobs/persistent_ssh.job.tpl. Random token + free
 # port per run -- nothing sensitive is hardcoded.
 
-#SBATCH --account=${RSK_JOB_ACCOUNT}
+${RSK_JOB_ACCOUNT_LINE}
 #SBATCH --time=${RSK_JOB_TIME}
 #SBATCH --partition=${RSK_JOB_PARTITION}
 ${RSK_JOB_GRES_LINE}
@@ -18,7 +18,9 @@ ENV="${RSK_JOB_ENV}"
 USERNAME="${RSK_JOB_USER}"
 LOGIN_HOST="${RSK_JOB_LOGIN_HOST}"
 
-source activate "${ENV}"
+set +o nounset  # activation scripts often read unset variables
+${RSK_JOB_ACTIVATE}
+set -o nounset
 
 # Random token + free port per run.
 TOKEN=$(python -c 'import secrets;print(secrets.token_hex(16))')
@@ -26,6 +28,9 @@ PORT=$(python -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));p=s.ge
 
 NODE_HOSTNAME=$(hostname)
 SESSION="jupyter_session_${SLURM_JOB_ID}"
+# Own tmux server per job (see vscode.job.tpl). It starts from this shell, so
+# Jupyter inherits the env activated above.
+TMUX_SOCKET="rsk-${SLURM_JOB_ID}"
 
 # Structured fields scraped by `pp` -- keep these prefixes stable.
 echo "RSK_JOB_NODE: ${NODE_HOSTNAME}"
@@ -35,20 +40,20 @@ echo "------------------------------------------------------------------"
 echo "Job running on node: ${NODE_HOSTNAME}"
 echo ""
 echo "1. From the login node (VS Code terminal):"
-echo "   ssh -N -L ${PORT}:localhost:${PORT} ${NODE_HOSTNAME}"
+echo "   ssh -N -L ${PORT}:127.0.0.1:${PORT} ${NODE_HOSTNAME}"
 echo ""
-echo "2. From outside the cluster:"
-echo "   ssh -N -L ${PORT}:${NODE_HOSTNAME}:${PORT} ${USERNAME}@${LOGIN_HOST}"
+echo "2. From outside the cluster (your laptop's ssh key must be in ~/.ssh/authorized_keys here):"
+echo "   ssh -N -J ${USERNAME}@${LOGIN_HOST} -L ${PORT}:127.0.0.1:${PORT} ${USERNAME}@${NODE_HOSTNAME}"
 echo ""
 echo "3. In IDE/Browser:"
 echo "   http://127.0.0.1:${PORT}/lab?token=${TOKEN}"
 echo "------------------------------------------------------------------"
 
-if ! tmux has-session -t "${SESSION}" 2>/dev/null; then
+# Listens on 127.0.0.1 only: reach it through an ssh tunnel to this node.
+if ! tmux -L "${TMUX_SOCKET}" has-session -t "${SESSION}" 2>/dev/null; then
     echo "Creating new tmux session '${SESSION}'"
-    tmux new-session -s "${SESSION}" -d
-    tmux send-keys -t "${SESSION}" "source activate ${ENV}" C-m
-    tmux send-keys -t "${SESSION}" "jupyter lab --no-browser --ip=0.0.0.0 --port=${PORT} --ServerApp.token='${TOKEN}' --ServerApp.allow_remote_access=True" C-m
+    tmux -L "${TMUX_SOCKET}" new-session -s "${SESSION}" -d \
+        "jupyter lab --no-browser --ip=127.0.0.1 --port=${PORT} --ServerApp.token='${TOKEN}'"
 else
     echo "tmux session '${SESSION}' already exists."
 fi

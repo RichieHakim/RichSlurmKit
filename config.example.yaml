@@ -13,16 +13,26 @@
 #   scontrol show partition <p>  # per-partition CPU / mem / time limits
 
 # Cluster login host: the externally-reachable hostname for SSHing into this
-# cluster from elsewhere. Used only by `p` to print the ssh-tunnel one-liner
-# for off-cluster connections. The installer fills this with `hostname -f`
-# on first run; replace it here if your cluster uses a public alias like
-# `login.<cluster>.edu` instead of a specific login node's FQDN.
+# cluster from elsewhere, usually a public alias like `login.<cluster>.edu`.
+# Used only by `p` to print the ssh-tunnel one-liner for off-cluster connections.
 login_host: ""
 
 # Conda env activated inside jupyter/vscode jobs. Make sure this env exists
 # (conda create -n <name> ...) before submitting. Override per call with
 # `v --env othername`.
 conda_env: base
+
+# Shell line that activates the env inside v/p jobs; {env} becomes the env name.
+# The default suits conda when its bin/ is on PATH. For mamba 2:
+#   activate: eval "$(mamba shell hook --shell bash)" && mamba activate {env}
+# For a venv (ignores conda_env):
+#   activate: source /path/to/venv/bin/activate
+activate: source activate {env}
+
+# Extra flags `c` passes to claude, and so to mc, mcr and mrevive. For example
+# --dangerously-skip-permissions skips every permission prompt; some clusters
+# forbid that for agents, so check your site's policy first.
+claude_flags: ""
 
 # `interactive` command (CPU srun shell) defaults. If your cluster requires
 # `-A`, set `account:` here; otherwise leave blank.

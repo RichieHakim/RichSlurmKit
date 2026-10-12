@@ -83,4 +83,4 @@ echo "------------------------------------------------------------------"
 echo "Starting SSH tunnel (Ctrl-C to stop; job keeps running)..."
 
 exec ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -N -L "${port}:localhost:${port}" "$node"
+    -N -L "${port}:127.0.0.1:${port}" "$node"
