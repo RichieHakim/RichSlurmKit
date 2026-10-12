@@ -4,6 +4,7 @@
 # - Creates config.yaml from config.example.yaml if missing
 # - Auto-detects login_host (best-effort) and writes it to config.yaml
 # - Adds a marker block to ~/.bashrc that sources shell/shellrc.sh
+# - Installs zmx (for `m`), and links the zellij config if zellij is installed
 set -euo pipefail
 
 RSK_ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
@@ -80,17 +81,27 @@ else
     green "Added source line to ~/.bashrc"
 fi
 
-# 5. zellij keybind override (Ctrl+o q -> Quit). Symlink; safe-skips if the
-# user has their own config.kdl.
+# 5. zmx, for the m* commands. A failure here only affects m / mc / mcr /
+# mrevive, so it doesn't stop the rest of the install.
+if "$RSK_ROOT/lib/zmx_install.sh"; then
+    green "zmx ready (m / mc / mcr / mrevive)"
+else
+    yellow "zmx not installed; m / mc / mcr / mrevive won't work until it is."
+    yellow "  Retry with: $RSK_ROOT/lib/zmx_install.sh"
+fi
+
+# 6. zellij config, only for people who use the z* helpers (docs/zellij.md).
+# Symlink; leaves an existing config.kdl alone.
 zellij_cfg_src="$RSK_ROOT/zellij/config.kdl"
 zellij_cfg_dst="$HOME/.config/zellij/config.kdl"
-mkdir -p "$(dirname "$zellij_cfg_dst")"
-if [[ -L "$zellij_cfg_dst" ]]; then
+if ! command -v zellij &>/dev/null; then
+    echo "zellij not found; skipping its config (only the z* helpers need it)"
+elif [[ -L "$zellij_cfg_dst" ]]; then
     if [[ "$(readlink -f "$zellij_cfg_dst")" == "$(readlink -f "$zellij_cfg_src")" ]]; then
         green "zellij config already linked"
     else
         yellow "zellij config is a symlink to $(readlink "$zellij_cfg_dst"); leaving as-is"
-        yellow "  To use RichSlurmKit's binding (Ctrl+o q -> Quit), replace with:"
+        yellow "  To use RichSlurmKit's bindings instead:"
         yellow "    ln -sf $zellij_cfg_src $zellij_cfg_dst"
     fi
 elif [[ -e "$zellij_cfg_dst" ]]; then
@@ -99,16 +110,9 @@ elif [[ -e "$zellij_cfg_dst" ]]; then
     yellow "  Summary: unbinds Ctrl+o and Ctrl+g (for Claude Code), moves the"
     yellow "  zellij session-mode prefix to Ctrl+\\ (then d/q/g for detach/quit/lock)."
 else
+    mkdir -p "$(dirname "$zellij_cfg_dst")"
     ln -s "$zellij_cfg_src" "$zellij_cfg_dst"
     green "Linked zellij config: $zellij_cfg_dst -> $zellij_cfg_src"
-fi
-
-# 6. zmx, for the m* commands (session persistence without zellij's terminal
-# emulator in the middle). Optional: a failure here only skips m*.
-if "$RSK_ROOT/lib/zmx_install.sh"; then
-    green "zmx ready (m / mc / mcr / mrevive)"
-else
-    yellow "zmx not installed; the m* commands won't work until it is."
 fi
 
 # 7. Detect whether config still has REPLACE-me placeholders; tailor the

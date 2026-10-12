@@ -1,9 +1,11 @@
 # RichSlurmKit
 
-Bash toolkit for launching Jupyter / VS Code tunnels and managing SLURM jobs.
-The shipped `config.example.yaml` is a placeholder template — you have to
-plug in your own account, partition, and resource values before anything
-will run.
+Bash toolkit for working on a Slurm cluster from VS Code: launch a VS Code
+tunnel (plus Jupyter) or a Jupyter-over-ssh job on a compute node, keep
+terminal and Claude Code sessions alive across disconnects with `m`, and bring
+them back after the job ends. The shipped `config.example.yaml` is a
+placeholder template: you have to plug in your own account, partition, and
+resource values before anything will run.
 
 ## Install
 
@@ -15,11 +17,13 @@ source ~/.bashrc
 ```
 
 The installer is non-interactive: it copies `config.example.yaml → config.yaml`
-(if missing) and adds one `source` line to `~/.bashrc`. Requires `conda`, `python`, `envsubst`, `tmux`, `ssh`.
+(if missing), adds one `source` line to `~/.bashrc`, and installs a pinned,
+checksum-verified [zmx](https://github.com/neurosnap/zmx) binary for `m`.
+Requires `conda`, `python`, `envsubst`, `tmux`, `ssh`, and `curl`.
 PyYAML auto-installs to your user pip site-packages.
 
-To uninstall: `./uninstall.sh` (use `--purge` to also drop `config.yaml` and
-the cached devtunnel binary).
+To uninstall: `./uninstall.sh` (use `--purge` to also drop `config.yaml`, the
+zmx binary, and the cached devtunnel binary).
 
 ## First-time setup
 
@@ -35,14 +39,14 @@ scontrol show partition <p> # per-partition CPU / mem / time limits
 
 Also check:
 
-- `login_host:` — the installer's guess is whatever this login node calls
+- `login_host:` is the installer's guess at what this login node calls
   itself. Many clusters use a load-balanced alias (e.g. `login.cluster.edu`)
   that's different. Fix it here if `p`'s ssh-tunnel one-liner needs to work
   from outside the cluster.
-- `conda_env:` — the global default env. Create it before running `v` or `p`.
+- `conda_env:` is the global default env. Create it before running `v` or `p`.
   Each preset can also set its own `conda_env:` to override the global one.
   CLI `--env` overrides everything.
-- `interactive: partition:` — defaults to `shared`, which doesn't exist on
+- `interactive: partition:` defaults to `shared`, which doesn't exist on
   every cluster. Adjust.
 
 Then:
@@ -64,124 +68,10 @@ v                # submit preset 1
 | `q [SECS]` | Watch `sacct` for your running/pending jobs |
 | `s` | `sshare` for your user |
 | `n` | `watch nvidia-smi` |
+| `m [args...]` | Keep sessions alive; see [Sessions](#sessions-m). |
+| `mc [name]` / `mcr [name]` | New session running `c` / `cr`, auto-named `claude_N`; attaches if it exists. |
+| `mrevive` | Bring back claude sessions after their Slurm job ended. |
 | `c` / `cr` | Personal shortcut: `claude --dangerously-skip-permissions` (resume with `cr`). Delete these if you don't use Claude Code. |
-| `t [name]` | Create (or attach to) a tmux session. Auto-names `session_N` if no name given. |
-| `tc [name]` / `tcr [name]` | Like `t`, but launches `c` / `cr` inside the session. Auto-names `claude_N`. If the named session already exists, just attaches. |
-| `z [args...]` | Alias for [zellij](https://github.com/zellij-org/zellij); passes all arguments straight through. Requires `zellij` on `PATH`. `z a <name>` attaches *coactively* (leaves other clients connected). |
-| `zz [name]` | **Solo-attach.** Detaches all *other* zellij clients first, then attaches (creating the session if needed), so you always get a clean, full-size session with a green border. Use this instead of `z a` when a reattach comes up small with a blue border. Safe — it only detaches client *views*; programs running in sessions (e.g. a live `claude`) keep running, as they're hosted by the session's `--server`. See note below. |
-| `zc [name]` / `zcr [name]` | Like `tc` / `tcr` but using zellij. Launches `c` / `cr` in a new session, auto-naming `claude_N`. If the named session already exists, just attaches (coactively). |
-| `zzc [name]` / `zzcr [name]` | **Solo** variants of `zc` / `zcr`: detach all *other* zellij clients first, then create-or-attach the claude session — so you reconnect full-size with a green border. Same safety as `zz`. |
-| `m [args...]` | Alias for [zmx](https://github.com/neurosnap/zmx), the trial replacement for `z`. Bare `m` lists sessions; `m a <name>` attaches (creating it if needed); `m end <name>` ends it but keeps it for `mrevive`; `m k <name>` kills it and forgets it. See [zmx](#zmx-m-trial-replacement-for-zellij) below. |
-| `mc [name]` / `mcr [name]` | Like `zc` / `zcr` but using zmx. Auto-names `claude_N`; attaches if the session exists. |
-| `mrevive` | List claude sessions lost when their Slurm job ended; `mrevive all` (or `mrevive <name>...`) recreates them with `claude -r <id>` in their old directory. |
-
-### zellij keybindings
-
-For terminal multiplexing, I recommend installing and using `zellij`. It's a bit friendlier than tmux for agentic coding TUIs.
-
-`install.sh` symlinks `zellij/config.kdl` to `~/.config/zellij/config.kdl`.
-Two zellij defaults (`Ctrl+o`, `Ctrl+g`) collide with Claude Code's bindings
-(expand details, open in `$EDITOR`), so we unbind them and move zellij's
-session-mode prefix to `Ctrl+\`:
-
-| key | action |
-|---|---|
-| `Ctrl+\` then `d` | Detach (session keeps running) |
-| `Ctrl+\` then `q` | Quit (kills session) |
-| `Ctrl+\` then `g` | Toggle Locked mode (zellij passes all keys through) |
-| `Ctrl+\` then `Esc` | Cancel — back to Normal mode |
-
-`Ctrl+\` is chosen because it's universally free on macOS / Linux / Windows
-and in VS Code's integrated terminal. Alt/Option is avoided because on macOS
-it produces special characters (`Option+d` → `∂`) unless the terminal is
-specifically reconfigured.
-
-All other zellij defaults are unchanged. If you hit another claude-code key
-that zellij eats (e.g. `Ctrl+p`/`Ctrl+t`/`Ctrl+r`/`Ctrl+s` enter pane/tab/
-resize/scroll modes), add the same `unbind` pattern to `zellij/config.kdl`.
-
-If you already have a `~/.config/zellij/config.kdl`, the installer leaves it
-alone and prints a pointer to this file so you can copy what you want.
-
-### Solo (`zz*`) vs coactive attach
-
-A zellij session can have several clients attached at once. When it does,
-zellij sizes the session to the **smallest** attached client and tints the
-extra client's focus **blue**. After a VS Code / terminal reload the old client
-often lingers (the node-local zellij server outlives your terminal), so a plain
-reattach lands you in a session that's small and blue-bordered.
-
-The fix is the **`zz` prefix = "solo"**: those commands detach every *other*
-zellij client first, so you're the only one and the session fills your terminal
-(green border). Each has a plain coactive counterpart that leaves other clients
-attached (use those when you deliberately want multiple live views — pairing, or
-watching one session while working in another):
-
-| solo (dedup first) | coactive | does |
-|---|---|---|
-| `zz <name>` | `z a <name>` | attach to a session |
-| `zzc [name]` | `zc [name]` | create-or-attach + `claude` |
-| `zzcr [name]` | `zcr [name]` | create-or-attach + `claude --resume` |
-
-The shared dedup lives in **`zsolo`** (run it directly to just clear stale
-clients). It's safe: detaching a client never stops the programs in a session's
-panes (a running `claude` keeps going) — those are owned by the session's
-`zellij --server`, which `zsolo` never touches. It signals only `zellij` client
-processes: SIGTERM first, then SIGKILL for any client still attached ~2s later.
-The escalation is required — a client whose terminal has stopped draining its
-pty (closed VS Code window, dropped ssh) never finishes zellij's graceful
-detach and ignores SIGTERM, which is exactly the stale client you're clearing.
-Reattach to get any view back. Run a `zz*` command from a **plain terminal**
-(the fresh one a reload gives you) — that's where the dedup fires; from *inside*
-a session it can't dedup itself, so it just attaches/switches.
-
-`zsolo` is **node-wide**: it detaches every client you have on that machine, not
-just the session you're heading for. That's the intent when you're reconnecting
-after a reload, but it means running it while you're working in another session
-will drop you out of that one too.
-
-### zmx (`m*`): trial replacement for zellij
-
-zellij draws every pane through its own terminal emulator, and that layer is
-the likely cause of the slow scrolling, the broken copy and path clicking, and
-the small-and-blue reattach. Claude Code also turns off its fast scrolling whenever
-it sees tmux or zellij. [zmx](https://github.com/neurosnap/zmx) only keeps
-sessions alive: output goes straight to your terminal, so VS Code's own
-scrollback, selection and Cmd+click on paths should work as they do without a
-multiplexer. There are no panes or tabs; use VS Code's terminal tabs and splits.
-
-| | |
-|---|---|
-| `mc [name]` | new session running `c` (or attach if it exists) |
-| `m` | list sessions here, with each claude's title and status |
-| `m a <name>` | attach (from inside a session: switch this terminal) |
-| `Ctrl+\` | detach this terminal (or just close the terminal) |
-| `m d` | inside a session: detach every client of it |
-| `m hi <name>` | print a session's scrollback |
-| `m end <name>` | kill a session but keep it for `mrevive <name>` |
-| `m k <name>` | kill a session and forget it |
-
-Several terminals can attach to one session; the size follows whichever one
-typed last. `lib/zmx_install.sh` (run by `install.sh`) installs a pinned zmx
-build. It never replaces a different installed version while sessions are
-live, because zmx's README warns that a version change can kill them.
-
-**Reviving after a job ends.** Nothing survives the end of a Slurm job. The
-repo's `c` and `cr` add a small Claude Code hook when they're inside a zmx or
-zellij session (`mc`, `mcr` and `mrevive` launch the repo's `c` by full path,
-so a personal `c` earlier on PATH doesn't skip it), and every `m*` command also
-snapshots the live claudes on the node,
-so each session's conversation id, directory, host and job are recorded in
-`~/.local/state/richslurmkit/m-sessions/`. In the next job, `mrevive` shows
-them and `mrevive all` recreates each one (detached) with `c -r <id>`. A
-session whose job is still running elsewhere is never revived, so two claudes
-never share a conversation. Sessions you left with `/exit` or `m end` show as
-`exited`; name them to revive anyway.
-
-**Long jobs.** The `agent_host` preset (`v agent_host`) is a CPU job for the
-tunnel and your claude sessions: 8 cores, 32G, 14 days, on `intermediate` or
-`unrestricted`, whichever starts first. Heavy work should still go to its own
-`sbatch` job: everything in this one shares its 32G.
 
 `v` and `p` share a CLI:
 
@@ -197,6 +87,67 @@ v --help        # full flag list
 Overridable flags: `--account`, `--partition`, `--gres`, `--cores`, `--mem`,
 `--time`, `--env`. `--keep-rendered` stashes the rendered job file in
 `~/.local/state/richslurmkit/` for debugging.
+
+## Sessions (`m`)
+
+`m` keeps terminal sessions (usually Claude Code) running on the compute node
+when you close the terminal, reload VS Code, or switch laptops. It wraps
+[zmx](https://github.com/neurosnap/zmx), which only keeps the session alive:
+output goes straight to your terminal instead of being redrawn by a
+multiplexer, so scrollback, selection, and Cmd+click on paths are handled by
+VS Code itself. There are no panes or tabs; use VS Code's terminal tabs and
+splits.
+
+| | |
+|---|---|
+| `mc [name]` | new session running `c` (or attach if it exists) |
+| `mcr [name]` | same, running `cr` (pick a conversation to resume) |
+| `m` | list sessions here, with each claude's title and status |
+| `m a <name>` | attach (from inside a session: switch this terminal) |
+| `Ctrl+\` | detach this terminal (or just close the terminal) |
+| `m d` | inside a session: detach every client of it |
+| `m hi <name>` | print a session's scrollback |
+| `m end <name>` | kill a session but keep it for `mrevive <name>` |
+| `m k <name>` | kill a session and forget it |
+
+Anything else after `m` goes straight to zmx (`m help`).
+
+Sessions live on the node they were started on. Start them from a terminal in
+your `v` job (VS Code's terminal), not inside `interactive`: everything started
+in an `srun` step dies when that step ends.
+
+Several terminals can attach to one session, for example from two laptops.
+They share one screen and one claude, and the size follows whichever terminal
+typed last. `lib/zmx_install.sh` (run by `install.sh`) installs the pinned zmx
+build. It never replaces a different installed version while sessions are
+live, because zmx's README warns that a version change can kill them.
+
+**Reviving after a job ends.** Nothing survives the end of a Slurm job. The
+repo's `c` and `cr` add a small Claude Code hook when they run inside a
+session (`mc`, `mcr` and `mrevive` launch the repo's `c` by full path, so a
+personal `c` earlier on PATH doesn't skip it), and every `m*` command also
+snapshots the live claudes on the node, so each session's conversation id,
+directory, host and job are recorded in
+`~/.local/state/richslurmkit/m-sessions/`. In the next job, `mrevive` shows
+them and `mrevive all` recreates each one (detached) with `c -r <id>`. A
+session whose job is still running elsewhere is never revived, so two claudes
+never share a conversation. Sessions you left with `/exit` or `m end` show as
+`exited`; name them to revive anyway (`mrevive <name>`).
+
+**Long jobs.** Sessions die with their job, so give them a long one. The
+`agent_host` example preset (`v agent_host`) is a CPU job for the tunnel and
+your claude sessions: 8 cores, 32G, 14 days. Point it at a partition that
+allows multi-day runs (on FASRC Cannon, `intermediate`). Heavy work should
+still go to its own `sbatch` job: everything in this one shares its 32G.
+
+### Other session managers
+
+`t [name]` creates (or attaches to) a tmux session, auto-named `session_N`;
+`tc` / `tcr` do the same and launch `c` / `cr` in it, auto-named `claude_N`.
+
+The zellij helpers (`z`, `zz`, `zc`, `zcr`, `zzc`, `zzcr`, `zsolo`, `zopen`)
+were the default before `m`. They still work and are documented in
+[docs/zellij.md](docs/zellij.md).
 
 ## Config
 

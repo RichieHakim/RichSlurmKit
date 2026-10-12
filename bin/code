@@ -2,7 +2,7 @@
 # Self-healing `code` wrapper.
 #
 # VS Code's IPC socket (VSCODE_IPC_HOOK_CLI -> /tmp/vscode-ipc-*.sock) rotates on
-# every reconnect / new window. Long-lived processes launched inside zellij (e.g.
+# every reconnect / new window. Long-lived processes in an m or zellij session (e.g.
 # Claude Code, whose Ctrl+G runs `code --wait`) keep the *old* path and then fail
 # with "VSCode quit unexpectedly (exit code 1)" once that socket is gone.
 #
