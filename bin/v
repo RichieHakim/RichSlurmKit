@@ -32,19 +32,24 @@ cd "$RSK_STATE_DIR"
 
 echo "=== Cleaning up stale slurm logs (keeping active jobs) ==="
 shopt -s nullglob
-active_ids=$(squeue -h -u "$USER" -o '%A' 2>/dev/null | tr '\n' '|' | sed 's/|$//')
-removed=0
-kept=0
-for f in slurm-*.out; do
-    id=$(echo "$f" | sed -nE 's/^slurm-([0-9]+)\.out$/\1/p')
-    if [[ -n "$id" && -n "$active_ids" && "$id" =~ ^($active_ids)$ ]]; then
-        kept=$((kept + 1))
-    else
-        rm -f "$f"
-        removed=$((removed + 1))
-    fi
-done
-echo "Removed ${removed} stale log(s); kept ${kept} active."
+# If squeue fails, every job would look finished: skip instead of deleting live logs.
+if ids=$(squeue -h -u "$USER" -o '%A' 2>/dev/null); then
+    active_ids=$(echo "$ids" | tr '\n' '|' | sed 's/|$//')
+    removed=0
+    kept=0
+    for f in slurm-*.out; do
+        id=$(echo "$f" | sed -nE 's/^slurm-([0-9]+)\.out$/\1/p')
+        if [[ -n "$id" && -n "$active_ids" && "$id" =~ ^($active_ids)$ ]]; then
+            kept=$((kept + 1))
+        else
+            rm -f "$f"
+            removed=$((removed + 1))
+        fi
+    done
+    echo "Removed ${removed} stale log(s); kept ${kept} active."
+else
+    echo "squeue failed; skipping log cleanup."
+fi
 
 # Render template.
 rendered=$(mktemp /tmp/rsk-vscode-XXXXXX.job)
