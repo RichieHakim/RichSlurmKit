@@ -7,8 +7,8 @@ them back after the job ends. The shipped `config.example.yaml` is a
 placeholder template: you have to plug in your own account, partition, and
 resource values before anything will run.
 
-Developed and used daily on FASRC Cannon. On HMS O2, only the cluster checks
-below have been run.
+Developed and used daily on FASRC Cannon. On HMS O2, only a test job with ssh
+into its node has been tried.
 
 ## Requirements
 
@@ -59,7 +59,7 @@ it:
 jid=$(squeue -u "$USER" -h -n rsk-check -t R -o %i | head -1)
 if [ -z "$jid" ]; then echo "rsk-check is not running yet; try again in a minute"
 else
-  ssh -o StrictHostKeyChecking=accept-new "$(squeue -h -j "$jid" -o %N)" "cat /tmp/rsk-check-$jid; rm -f /tmp/rsk-check-$jid"
+  ssh "$(squeue -h -j "$jid" -o %N)" "cat /tmp/rsk-check-$jid; rm -f /tmp/rsk-check-$jid"
   scancel "$jid"
 fi
 ```
@@ -76,7 +76,7 @@ A good result prints the paths of `tmux` and `curl`, then `internet ok`.
 ## Install
 
 ```bash
-git clone <repo-url> ~/RichSlurmKit
+git clone https://github.com/RichieHakim/RichSlurmKit.git ~/RichSlurmKit
 cd ~/RichSlurmKit
 ./install.sh
 source ~/.bashrc
@@ -227,8 +227,8 @@ See `config.example.yaml` for the schema and required edits.
 
 ## Warnings
 
-- **Claude permissions.** `claude_flags` applies to every `c`, `mc` and
-  `mrevive`. `--dangerously-skip-permissions` lets Claude run any command
+- **Claude permissions.** `claude_flags` applies to `c`, `cr`, `mc`, `mcr`
+  and `mrevive`. `--dangerously-skip-permissions` lets Claude run any command
   without asking. Some clusters forbid it; check your site's policy.
 - **Run Claude in a job.** Login nodes are shared, and some clusters kill
   long-running processes there. Use `mc` inside a `v` job.
@@ -236,9 +236,10 @@ See `config.example.yaml` for the schema and required edits.
   `~/.local/share/richslurmkit/vscode-cli-auth/token.json` (mode 600), so
   later jobs skip the device code. Anyone who can read that file can use your
   tunnels. `./uninstall.sh --purge` deletes it.
-- **Command names.** `bin/` goes first on your PATH, so `c m n p q s t v z`,
-  `code` and `interactive` hide any program with the same name. Shell
-  functions and aliases, such as zoxide's `z`, still win over them.
+- **Command names.** `bin/` goes first on your PATH, so every command in it
+  hides any program with the same name, such as `mc` (Midnight Commander) or
+  `tc` (traffic control). Shell functions and aliases, such as zoxide's `z`,
+  still win over them.
 - **Log cleanup.** Each `v` or `p` deletes the slurm logs in `<repo>/logs/` of
   jobs that are no longer queued or running.
 - **Host keys.** `p` and `pp` ssh to compute nodes with host-key checking off,
