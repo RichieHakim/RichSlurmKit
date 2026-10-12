@@ -78,12 +78,12 @@ _rsk_complete_m() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     if [ "$COMP_CWORD" -eq 1 ]; then
         COMPREPLY=( $(compgen -W "\
-attach run send print write detach list ls kill history get set clear print-env \
+attach run send print write detach list ls end kill history get set clear print-env \
 wait tail completions version help a r s p wr d l k g cl hi w t c v h" -- "$cur") )
         return
     fi
     case "${COMP_WORDS[1]}" in
-        a|attach|r|run|s|send|p|print|wr|write|k|kill|hi|history|g|get|set|cl|clear|print-env|w|wait|t|tail)
+        a|attach|r|run|s|send|p|print|wr|write|end|k|kill|hi|history|g|get|set|cl|clear|print-env|w|wait|t|tail)
             COMPREPLY=( $(compgen -W "$(_rsk_zmx_sessions)" -- "$cur") ) ;;
     esac
 }

@@ -71,7 +71,7 @@ v                # submit preset 1
 | `zz [name]` | **Solo-attach.** Detaches all *other* zellij clients first, then attaches (creating the session if needed), so you always get a clean, full-size session with a green border. Use this instead of `z a` when a reattach comes up small with a blue border. Safe — it only detaches client *views*; programs running in sessions (e.g. a live `claude`) keep running, as they're hosted by the session's `--server`. See note below. |
 | `zc [name]` / `zcr [name]` | Like `tc` / `tcr` but using zellij. Launches `c` / `cr` in a new session, auto-naming `claude_N`. If the named session already exists, just attaches (coactively). |
 | `zzc [name]` / `zzcr [name]` | **Solo** variants of `zc` / `zcr`: detach all *other* zellij clients first, then create-or-attach the claude session — so you reconnect full-size with a green border. Same safety as `zz`. |
-| `m [args...]` | Alias for [zmx](https://github.com/neurosnap/zmx), the trial replacement for `z`. Bare `m` lists sessions; `m a <name>` attaches (creating it if needed); `m k <name>` kills it. See [zmx](#zmx-m-trial-replacement-for-zellij) below. |
+| `m [args...]` | Alias for [zmx](https://github.com/neurosnap/zmx), the trial replacement for `z`. Bare `m` lists sessions; `m a <name>` attaches (creating it if needed); `m end <name>` ends it but keeps it for `mrevive`; `m k <name>` kills it and forgets it. See [zmx](#zmx-m-trial-replacement-for-zellij) below. |
 | `mc [name]` / `mcr [name]` | Like `zc` / `zcr` but using zmx. Auto-names `claude_N`; attaches if the session exists. |
 | `mrevive` | List claude sessions lost when their Slurm job ended; `mrevive all` (or `mrevive <name>...`) recreates them with `claude -r <id>` in their old directory. |
 
@@ -158,7 +158,8 @@ multiplexer. There are no panes or tabs; use VS Code's terminal tabs and splits.
 | `Ctrl+\` | detach this terminal (or just close the terminal) |
 | `m d` | inside a session: detach every client of it |
 | `m hi <name>` | print a session's scrollback |
-| `m k <name>` | kill a session |
+| `m end <name>` | kill a session but keep it for `mrevive <name>` |
+| `m k <name>` | kill a session and forget it |
 
 Several terminals can attach to one session; the size follows whichever one
 typed last. `lib/zmx_install.sh` (run by `install.sh`) installs a pinned zmx
@@ -174,8 +175,8 @@ so each session's conversation id, directory, host and job are recorded in
 `~/.local/state/richslurmkit/m-sessions/`. In the next job, `mrevive` shows
 them and `mrevive all` recreates each one (detached) with `c -r <id>`. A
 session whose job is still running elsewhere is never revived, so two claudes
-never share a conversation. Sessions you left with `/exit` show as `exited`;
-name them to revive anyway.
+never share a conversation. Sessions you left with `/exit` or `m end` show as
+`exited`; name them to revive anyway.
 
 **Long jobs.** The `agent_host` preset (`v agent_host`) is a CPU job for the
 tunnel and your claude sessions: 8 cores, 32G, 14 days, on `intermediate` or

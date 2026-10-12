@@ -4,6 +4,8 @@
 # and path clicking keep working. Arguments pass straight through to zmx,
 # except:
 #   m                 list sessions (and ones from ended jobs `mrevive` can restore)
+#   m end NAME...     kill sessions but keep their records: `mrevive NAME`
+#                     brings them back, `mrevive all` leaves them alone
 #   m k|kill NAME...  kill sessions and forget their records
 # Common: m a NAME (attach/create), m hi NAME (scrollback), m d (detach all
 # clients of the current session). Ctrl+\ detaches this terminal.
@@ -12,17 +14,40 @@
 set -e
 source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib/mx.sh"
 
+# Session names among the arguments (drops flags like --force).
+rsk_mx_names() { for a in "$@"; do [[ "$a" == -* ]] || echo "$a"; done; }
+
 case "${1:-}" in
     "")
         rsk_mx_snapshot
         exec "$RSK_MX_PY" ls
         ;;
+    end)
+        shift
+        mapfile -t names < <(rsk_mx_names "$@")
+        if [[ ${#names[@]} -eq 0 ]]; then
+            echo "Usage: m end NAME..." >&2
+            exit 2
+        fi
+        # Record the current conversation first, and mark before killing:
+        # ending the session you're in kills this script with it.
+        rsk_mx_snapshot
+        rc=0
+        "$RSK_MX_PY" end "${names[@]}" || rc=$?
+        # Only kill what runs here; mx.py already reported the rest.
+        live=()
+        for n in "${names[@]}"; do rsk_mx_exists "$n" && live+=("$n"); done
+        flags=()
+        for a in "$@"; do [[ "$a" == -* ]] && flags+=("$a"); done
+        [[ ${#live[@]} -eq 0 ]] || zmx kill "${live[@]}" "${flags[@]}" || rc=$?
+        exit $rc
+        ;;
     k|kill)
         shift
-        zmx kill "$@"
-        names=()
-        for a in "$@"; do [[ "$a" == -* ]] || names+=("$a"); done
+        mapfile -t names < <(rsk_mx_names "$@")
+        # Forget first, for the same reason as `end`.
         "$RSK_MX_PY" forget "${names[@]}" >/dev/null
+        zmx kill "$@"
         ;;
     *)
         exec zmx "$@"

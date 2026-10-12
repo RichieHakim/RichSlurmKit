@@ -24,6 +24,8 @@ Subcommands:
                          --forget   delete the named records instead
                          --dry-run  only print what would happen
   forget names...      Delete records (used by `m kill`).
+  end names...         Mark records exited, so only `mrevive NAME` revives
+                       them (used by `m end`).
 
 State dir: $RSK_M_STATE_DIR, else $XDG_STATE_HOME/richslurmkit/m-sessions.
 """
@@ -103,6 +105,28 @@ def forget(names):
             print(f"forgot {name}")
         except FileNotFoundError:
             pass
+
+
+def cmd_end(names):
+    """Mark records exited, as /exit would: `mrevive all` skips them and
+    `mrevive NAME` still brings them back. `m end` kills the sessions after."""
+    records, sessions = load_records(), zmx_sessions()
+    rc = 0
+    for name in names:
+        rec = records.get(name)
+        if not rec:
+            if name not in sessions:
+                print(f"m end: no session or record named {name}", file=sys.stderr)
+                rc = 1
+            continue
+        rec["exited"] = True
+        write_record(rec)
+        if name in sessions:
+            print(f"keeping {name} for `mrevive {name}`")
+        else:
+            print(f"{name} is not a zmx session on this node, so nothing to kill; "
+                  f"marked it ended (`mrevive {name}` still brings it back)")
+    return rc
 
 
 def mux_of(env):
@@ -538,6 +562,8 @@ def main():
     if cmd == "forget":
         forget(args)
         return 0
+    if cmd == "end":
+        return cmd_end(args)
     print(__doc__, file=sys.stderr)
     return 2
 
