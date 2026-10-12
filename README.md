@@ -7,6 +7,72 @@ them back after the job ends. The shipped `config.example.yaml` is a
 placeholder template: you have to plug in your own account, partition, and
 resource values before anything will run.
 
+Developed and used daily on FASRC Cannon. On HMS O2, only the cluster checks
+below have been run.
+
+## Requirements
+
+- Linux on x86_64 or aarch64 (`vclean` is x86_64 only).
+- Slurm, and bash as your login shell. The toolkit hooks into `~/.bashrc`.
+- On the login node: Python 3 (PyYAML is installed for you), `envsubst`
+  (from gettext), `curl`, `ssh`.
+- On compute nodes: `tmux` and `curl`.
+- A Python env for jobs with `jupyterlab` installed. Activated with conda by
+  default; set `activate:` in `config.yaml` for mamba or a venv.
+- `v`: compute nodes need outbound internet. Each job downloads the VS Code
+  CLI and opens a tunnel through Microsoft's servers, and the first one asks
+  you to log in to GitHub.
+- `p` / `pp`: you must be able to ssh from the login node into a node running
+  your job.
+- `install.sh` downloads zmx from GitHub.
+
+## Check your cluster
+
+On a login node:
+
+```bash
+uname -m                                 # x86_64 or aarch64
+scontrol version                         # Slurm
+getent passwd "$USER" | cut -d: -f7      # your login shell: should be bash
+sinfo -s -o '%P %l'                      # partitions and time limits; * marks the default
+command -v python3 envsubst curl ssh conda   # anything missing is not installed
+```
+
+Then test a compute node. Set `PART` to a partition from `sinfo`. If your
+cluster requires an account, run `export SBATCH_ACCOUNT=youraccount` first.
+This submits a 10-minute, 1-core job:
+
+```bash
+PART=short   # a partition you can use, from sinfo -s
+sbatch -p "$PART" -t 10 -c 1 --mem=1G -J rsk-check -o /dev/null --wrap '
+f=/tmp/rsk-check-$SLURM_JOB_ID
+{ command -v tmux curl
+  curl -sSI -m 10 https://update.code.visualstudio.com >/dev/null && echo "internet ok"
+} >"$f" 2>&1
+sleep 300'
+```
+
+Once it is running (`squeue -u "$USER"`), read its result over ssh and cancel
+it:
+
+```bash
+jid=$(squeue -u "$USER" -h -n rsk-check -t R -o %i | head -1)
+if [ -z "$jid" ]; then echo "rsk-check is not running yet; try again in a minute"
+else
+  ssh -o StrictHostKeyChecking=accept-new "$(squeue -h -j "$jid" -o %N)" "cat /tmp/rsk-check-$jid; rm -f /tmp/rsk-check-$jid"
+  scancel "$jid"
+fi
+```
+
+A good result prints the paths of `tmux` and `curl`, then `internet ok`.
+
+- ssh is refused: `p` and `pp` won't work. `v` and `m` still do.
+- `No such file`: your ssh login doesn't see the job's `/tmp`, where zmx keeps
+  its sockets. Run `m` only from terminals inside the job, such as VS Code's
+  terminal in a `v` job.
+- `tmux` or `curl` missing: ask your admins, or install them into your env.
+- No `internet ok`: `v` can't work. Use `p`.
+
 ## Install
 
 ```bash
@@ -19,11 +85,11 @@ source ~/.bashrc
 The installer is non-interactive: it copies `config.example.yaml → config.yaml`
 (if missing), adds one `source` line to `~/.bashrc`, and installs a pinned,
 checksum-verified [zmx](https://github.com/neurosnap/zmx) binary for `m`.
-Requires `conda`, `python`, `envsubst`, `tmux`, `ssh`, and `curl`.
-PyYAML auto-installs to your user pip site-packages.
+It stops if `envsubst` or PyYAML is missing and can't be installed, and warns
+if `conda` isn't on PATH.
 
-To uninstall: `./uninstall.sh` (use `--purge` to also drop `config.yaml`, the
-zmx binary, and the cached devtunnel binary).
+To uninstall: `./uninstall.sh`. Add `--purge` to also delete `config.yaml`,
+the zmx and devtunnel binaries, and the saved VS Code tunnel login.
 
 ## First-time setup
 
@@ -39,13 +105,15 @@ scontrol show partition <p> # per-partition CPU / mem / time limits
 
 Also check:
 
-- `login_host:` is the installer's guess at what this login node calls
-  itself. Many clusters use a load-balanced alias (e.g. `login.cluster.edu`)
-  that's different. Fix it here if `p`'s ssh-tunnel one-liner needs to work
-  from outside the cluster.
-- `conda_env:` is the global default env. Create it before running `v` or `p`.
-  Each preset can also set its own `conda_env:` to override the global one.
-  CLI `--env` overrides everything.
+- `login_host:` ships blank. Set it to the hostname you ssh to from your
+  laptop (often an alias like `login.cluster.edu`). Only `p` uses it, to
+  print an ssh-tunnel command for use from off the cluster.
+- `conda_env:` is the global default env. Create it, with `jupyterlab`, before
+  running `v` or `p`. Each preset can set its own `conda_env:`, and `--env`
+  overrides both.
+- `activate:` is the line that activates the env inside jobs. The default
+  (`source activate {env}`) suits conda; the example config shows mamba and
+  venv versions.
 - `interactive: partition:` defaults to `shared`, which doesn't exist on
   every cluster. Adjust.
 
@@ -53,7 +121,7 @@ Then:
 
 ```bash
 v --list         # confirm the presets look right
-v                # submit preset 1
+v                # submit the default preset
 ```
 
 ## Commands
@@ -71,12 +139,12 @@ v                # submit preset 1
 | `m [args...]` | Keep sessions alive; see [Sessions](#sessions-m). |
 | `mc [name]` / `mcr [name]` | New session running `c` / `cr`, auto-named `claude_N`; attaches if it exists. |
 | `mrevive` | Bring back claude sessions after their Slurm job ended. |
-| `c` / `cr` | Personal shortcut: `claude --dangerously-skip-permissions` (resume with `cr`). Delete these if you don't use Claude Code. |
+| `c` / `cr` | `claude` with the `claude_flags` from `config.yaml` (`cr` resumes). |
 
 `v` and `p` share a CLI:
 
 ```
-v               # preset 1, all defaults
+v               # the default preset
 v 3             # preset 3
 v agent_host    # a preset by name
 v 3 --account foo --partition shared
@@ -85,8 +153,8 @@ v --help        # full flag list
 ```
 
 Overridable flags: `--account`, `--partition`, `--gres`, `--cores`, `--mem`,
-`--time`, `--env`. `--keep-rendered` stashes the rendered job file in
-`~/.local/state/richslurmkit/` for debugging.
+`--time`, `--env`. `--keep-rendered` keeps the rendered job file in
+`<repo>/logs/` for debugging.
 
 ## Sessions (`m`)
 
@@ -157,12 +225,40 @@ re-source). Add or reorder presets freely.
 
 See `config.example.yaml` for the schema and required edits.
 
+## Warnings
+
+- **Claude permissions.** `claude_flags` applies to every `c`, `mc` and
+  `mrevive`. `--dangerously-skip-permissions` lets Claude run any command
+  without asking. Some clusters forbid it; check your site's policy.
+- **Run Claude in a job.** Login nodes are shared, and some clusters kill
+  long-running processes there. Use `mc` inside a `v` job.
+- **Tunnel login.** `v` saves your GitHub tunnel login to
+  `~/.local/share/richslurmkit/vscode-cli-auth/token.json` (mode 600), so
+  later jobs skip the device code. Anyone who can read that file can use your
+  tunnels. `./uninstall.sh --purge` deletes it.
+- **Command names.** `bin/` goes first on your PATH, so `c m n p q s t v z`,
+  `code` and `interactive` hide any program with the same name. Shell
+  functions and aliases, such as zoxide's `z`, still win over them.
+- **Log cleanup.** Each `v` or `p` deletes the slurm logs in `<repo>/logs/` of
+  jobs that are no longer queued or running.
+- **Host keys.** `p` and `pp` ssh to compute nodes with host-key checking off,
+  since nodes change from job to job.
+- **devtunnel.** `vclean` downloads Microsoft's devtunnel CLI without
+  checking a checksum.
+- **Claude Code internals.** `mrevive` reads `~/.claude/sessions/`, which is
+  not a public Claude Code interface. A Claude Code update can break it.
+
 ## Where things go
 
-- SLURM logs + `--keep-rendered` job files: `<repo>/logs/` (gitignored).
+- SLURM logs + `--keep-rendered` job files: `<repo>/logs/` (gitignored, mode 700).
   Sibling of `config.yaml`; the absolute path is printed by `v`/`p` on submit.
+- Saved VS Code tunnel login: `~/.local/share/richslurmkit/vscode-cli-auth/token.json`
 - Cached `devtunnel` binary (auto-installed by `vclean`): `~/.local/share/richslurmkit/bin/devtunnel`
 - zmx binary: `~/.local/share/richslurmkit/zmx/<version>/zmx`, linked from `~/.local/bin/zmx`.
   Session sockets and logs: `/tmp/zmx-<uid>/` on each node.
 - `mrevive` records: `~/.local/state/richslurmkit/m-sessions/`.
 - Rendered job templates (per-submit): `/tmp/rsk-*.job` (auto-deleted)
+
+## License
+
+MIT. See [LICENSE](LICENSE).
