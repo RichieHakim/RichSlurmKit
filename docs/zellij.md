@@ -90,12 +90,9 @@ you out of that one too.
 
 ## Moving sessions to `m`
 
-The repo's `c` records Claude conversations inside zellij sessions the same way
-it does inside zmx ones, so `mrevive` can carry them over. Run `m` once in the
-old job to refresh the records, end that job, then run `mrevive` in the new one:
-each session comes back as an `m` session with the same name and conversation.
-A session whose job is still running is never revived, so a conversation is
-never open twice.
+Quit claude in the zellij session first, so the conversation isn't open twice.
+Then run `mcr <name>` and pick the conversation: it continues in an `m`
+session.
 
 ## Why `m` is the default
 

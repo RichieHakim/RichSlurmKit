@@ -76,12 +76,12 @@ else
     green "Added source line to ~/.bashrc"
 fi
 
-# 5. zmx, for the m* commands. A failure here only affects m / mc / mcr /
-# mrevive, so it doesn't stop the rest of the install.
+# 5. zmx, for the m* commands. A failure here only affects m / mc / mcr, so
+# it doesn't stop the rest of the install.
 if "$RSK_ROOT/lib/zmx_install.sh"; then
-    green "zmx ready (m / mc / mcr / mrevive)"
+    green "zmx ready (m / mc / mcr)"
 else
-    yellow "zmx not installed; m / mc / mcr / mrevive won't work until it is."
+    yellow "zmx not installed; m / mc / mcr won't work until it is."
     yellow "  Retry with: $RSK_ROOT/lib/zmx_install.sh"
 fi
 

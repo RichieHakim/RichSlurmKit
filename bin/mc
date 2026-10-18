@@ -16,14 +16,12 @@ unset RSK_MC_LAUNCH
 case "${1:-}" in a|attach) shift ;; esac
 
 name="${1:-$(rsk_mx_next_name)}"
-rsk_mx_snapshot
 
 if rsk_mx_exists "$name"; then
     exec zmx attach "$name"
 fi
 
-# By absolute path: another `c` earlier on PATH (e.g. a personal copy) would
-# skip the hook that records the session for `mrevive`. bash -ic gives the
-# usual interactive environment; exec bash -i keeps the session alive after
-# claude exits.
+# By absolute path, so a `c` alias or function from ~/.bashrc doesn't replace
+# the repo's. bash -ic gives the usual interactive environment; exec bash -i
+# keeps the session alive after claude exits.
 exec zmx attach "$name" bash -ic "$(printf '%q' "$_rsk_mx_root/bin/$launch"); exec bash -i"

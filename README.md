@@ -138,7 +138,6 @@ v                # submit the default preset
 | `n` | `watch nvidia-smi` |
 | `m [args...]` | Keep sessions alive; see [Sessions](#sessions-m). |
 | `mc [name]` / `mcr [name]` | New session running `c` / `cr`, auto-named `claude_N`; attaches if it exists. |
-| `mrevive` | Bring back claude sessions after their Slurm job ended. |
 | `c` / `cr` | `claude` with the `claude_flags` from `config.yaml` (`cr` resumes). |
 
 `v` and `p` share a CLI:
@@ -175,8 +174,7 @@ splits.
 | `Ctrl+\` | detach this terminal (or just close the terminal) |
 | `m d` | inside a session: detach every client of it |
 | `m hi <name>` | print a session's scrollback |
-| `m end <name>` | kill a session but keep it for `mrevive <name>` |
-| `m k <name>` | kill a session and forget it |
+| `m k <name>` | kill a session |
 
 Anything else after `m` goes straight to zmx (`m help`).
 
@@ -190,23 +188,13 @@ typed last. `lib/zmx_install.sh` (run by `install.sh`) installs the pinned zmx
 build. It never replaces a different installed version while sessions are
 live, because zmx's README warns that a version change can kill them.
 
-**Reviving after a job ends.** Nothing survives the end of a Slurm job. The
-repo's `c` and `cr` add a small Claude Code hook when they run inside a
-session (`mc`, `mcr` and `mrevive` launch the repo's `c` by full path, so a
-personal `c` earlier on PATH doesn't skip it), and every `m*` command also
-snapshots the live claudes on the node, so each session's conversation id,
-directory, host and job are recorded in
-`~/.local/state/richslurmkit/m-sessions/`. In the next job, `mrevive` shows
-them and `mrevive all` recreates each one (detached) with `c -r <id>`. A
-session whose job is still running elsewhere is never revived, so two claudes
-never share a conversation. Sessions you left with `/exit` or `m end` show as
-`exited`; name them to revive anyway (`mrevive <name>`).
-
 **Long jobs.** Sessions die with their job, so give them a long one. The
 `agent_host` example preset (`v agent_host`) is a CPU job for the tunnel and
 your claude sessions: 8 cores, 32G, 14 days. Point it at a partition that
 allows multi-day runs (on FASRC Cannon, `intermediate`). Heavy work should
 still go to its own `sbatch` job: everything in this one shares its 32G.
+When a job ends, its claudes stop but their conversations are saved: in a
+new job, `mcr` lets you pick one to resume.
 
 ### Other session managers
 
@@ -227,8 +215,8 @@ See `config.example.yaml` for the schema and required edits.
 
 ## Warnings
 
-- **Claude permissions.** `claude_flags` applies to `c`, `cr`, `mc`, `mcr`
-  and `mrevive`. `--dangerously-skip-permissions` lets Claude run any command
+- **Claude permissions.** `claude_flags` applies to `c`, `cr`, `mc` and
+  `mcr`. `--dangerously-skip-permissions` lets Claude run any command
   without asking. Some clusters forbid it; check your site's policy.
 - **Run Claude in a job.** Login nodes are shared, and some clusters kill
   long-running processes there. Use `mc` inside a `v` job.
@@ -246,8 +234,9 @@ See `config.example.yaml` for the schema and required edits.
   since nodes change from job to job.
 - **devtunnel.** `vclean` downloads Microsoft's devtunnel CLI without
   checking a checksum.
-- **Claude Code internals.** `mrevive` reads `~/.claude/sessions/`, which is
-  not a public Claude Code interface. A Claude Code update can break it.
+- **Claude Code internals.** `m` reads `~/.claude/sessions/` to show each
+  claude's title and status. That is not a public Claude Code interface, so a
+  Claude Code update can break that column.
 
 ## Where things go
 
@@ -257,7 +246,6 @@ See `config.example.yaml` for the schema and required edits.
 - Cached `devtunnel` binary (auto-installed by `vclean`): `~/.local/share/richslurmkit/bin/devtunnel`
 - zmx binary: `~/.local/share/richslurmkit/zmx/<version>/zmx`, linked from `~/.local/bin/zmx`.
   Session sockets and logs: `/tmp/zmx-<uid>/` on each node.
-- `mrevive` records: `~/.local/state/richslurmkit/m-sessions/`.
 - Rendered job templates (per-submit): `/tmp/rsk-*.job` (auto-deleted)
 
 ## License

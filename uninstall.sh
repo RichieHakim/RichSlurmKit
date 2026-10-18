@@ -56,7 +56,7 @@ if [[ $purge -eq 1 ]]; then
     # The job template keeps the tunnel login here regardless of XDG_DATA_HOME.
     rm -rf "$HOME/.local/share/richslurmkit/vscode-cli-auth"
     echo "Purged config.yaml and ~/.local/share/richslurmkit/"
-    echo "(Left in place: job logs in $RSK_ROOT/logs/, mrevive records in ~/.local/state/richslurmkit/.)"
+    echo "(Left in place: job logs in $RSK_ROOT/logs/.)"
 fi
 
 echo "Done. Re-source ~/.bashrc (or open a new shell) to clear PATH/aliases."

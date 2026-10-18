@@ -29,7 +29,7 @@ conda_env: base
 #   activate: source /path/to/venv/bin/activate
 activate: source activate {env}
 
-# Extra flags `c` passes to claude, and so to mc, mcr and mrevive. For example
+# Extra flags `c` passes to claude, and so to cr, mc and mcr. For example
 # --dangerously-skip-permissions skips every permission prompt; some clusters
 # forbid that for agents, so check your site's policy first.
 claude_flags: ""

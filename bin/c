@@ -1,8 +1,6 @@
 #!/bin/bash
 # claude, plus `claude_flags` from config.yaml (e.g. --dangerously-skip-permissions).
-# Inside a zmx or zellij session, also load lib/mx.py as a SessionStart/SessionEnd
-# hook, so `mrevive` knows which conversation runs in which session (it follows
-# /clear and /resume). Without a readable config this is plain `claude`.
+# Without a readable config this is plain `claude`.
 root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 
 flags=()
@@ -15,10 +13,4 @@ if [[ -f "$config" && -n "$py" ]]; then
     read -ra flags <<< "${RSK_CLAUDE_FLAGS:-}"
 fi
 
-extra=()
-if [[ -n "${ZMX_SESSION:-}${ZELLIJ_SESSION_NAME:-}" ]]; then
-    hook="$root/lib/mx.py hook"
-    entry="[{\"hooks\":[{\"type\":\"command\",\"command\":\"$hook\"}]}]"
-    extra=(--settings "{\"hooks\":{\"SessionStart\":$entry,\"SessionEnd\":$entry}}")
-fi
-claude "${flags[@]}" "${extra[@]}" "$@"
+claude "${flags[@]}" "$@"

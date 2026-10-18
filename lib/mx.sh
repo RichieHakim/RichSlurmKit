@@ -1,4 +1,4 @@
-# Sourced by the zmx-based m* commands (m, mc, mcr, mrevive).
+# Sourced by the zmx-based m* commands (m, mc, mcr).
 
 _rsk_mx_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 RSK_MX_PY="$_rsk_mx_root/lib/mx.py"
@@ -21,7 +21,3 @@ rsk_mx_next_name() {
     while rsk_mx_exists "claude_$i"; do i=$((i+1)); done
     echo "claude_$i"
 }
-
-# Record which conversation runs in which session (see lib/mx.py). Cheap, and
-# it never fails the calling command.
-rsk_mx_snapshot() { "$RSK_MX_PY" snapshot >/dev/null 2>&1 || true; }
