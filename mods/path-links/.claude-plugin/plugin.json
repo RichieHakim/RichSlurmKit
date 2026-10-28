@@ -1,0 +1,10 @@
+{
+  "name": "path-links",
+  "version": "0.1.0",
+  "description": "Draws the file and directory paths in Claude's replies as links to this node's VS Code tunnel, so Cmd+click opens them in VS Code even when a path wraps. The model is told nothing; the saved conversation keeps plain paths.",
+  "author": {
+    "name": "RichieHakim",
+    "url": "https://github.com/RichieHakim"
+  },
+  "license": "MIT"
+}

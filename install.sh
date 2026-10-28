@@ -4,6 +4,7 @@
 # - Creates config.yaml from config.example.yaml if missing
 # - Adds a marker block to ~/.bashrc that sources shell/shellrc.sh
 # - Installs zmx (for `m`), and links the zellij config if zellij is installed
+# - Installs the path-links Claude Code mod (clickable file paths) if claude is installed
 set -euo pipefail
 
 RSK_ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
@@ -110,7 +111,26 @@ else
     green "Linked zellij config: $zellij_cfg_dst -> $zellij_cfg_src"
 fi
 
-# 7. Detect whether config still has REPLACE-me placeholders; tailor the
+# 7. The path-links mod, which makes file paths in Claude's replies clickable
+# in VS Code (README, "Clicking file paths"). Claude reads it from this folder,
+# so edits reach open sessions with /reload-plugins. A failure here only
+# affects path clicking.
+mod_dir="$RSK_ROOT/mods/path-links"
+if ! command -v claude &>/dev/null; then
+    echo "claude not found; skipping the path-links mod"
+elif [[ "$(claude plugin list 2>/dev/null)" == *"path-links@rsk-local"* ]]; then
+    green "path-links mod already installed"
+elif { [[ "$(claude plugin marketplace list 2>/dev/null)" == *"($mod_dir)"* ]] ||
+       claude plugin marketplace add "$mod_dir" >/dev/null; } &&
+     claude plugin install path-links@rsk-local >/dev/null; then
+    green "Installed the path-links mod (run /reload-plugins in open Claude sessions)"
+else
+    yellow "Could not install the path-links mod; file paths stay unclickable."
+    yellow "  Retry with: claude plugin marketplace add $mod_dir"
+    yellow "              claude plugin install path-links@rsk-local"
+fi
+
+# 8. Detect whether config still has REPLACE-me placeholders; tailor the
 # closing message to whichever state the user is actually in.
 needs_edits=0
 if grep -qE 'YOUR_[A-Z_]+' "$RSK_CONFIG"; then

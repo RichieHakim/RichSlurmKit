@@ -1,6 +1,6 @@
 #!/bin/bash
 # Uninstaller for RichSlurmKit.
-# Default: just remove the sentinel block from ~/.bashrc.
+# Default: remove the sentinel block from ~/.bashrc and the path-links mod.
 # --purge: also remove config.yaml, the zmx and devtunnel binaries, and the
 # saved VS Code tunnel login.
 set -euo pipefail
@@ -43,6 +43,17 @@ zellij_cfg_dst="$HOME/.config/zellij/config.kdl"
 if [[ -L "$zellij_cfg_dst" ]] && [[ "$(readlink -f "$zellij_cfg_dst")" == "$(readlink -f "$zellij_cfg_src")" ]]; then
     rm -f "$zellij_cfg_dst"
     echo "Removed zellij config symlink"
+fi
+
+# The path-links Claude Code mod and the folder marketplace install.sh added for it.
+if command -v claude &>/dev/null; then
+    if [[ "$(claude plugin list 2>/dev/null)" == *"path-links@rsk-local"* ]] &&
+       claude plugin uninstall path-links@rsk-local >/dev/null; then
+        echo "Removed the path-links Claude Code mod"
+    fi
+    if [[ "$(claude plugin marketplace list 2>/dev/null)" == *"($RSK_ROOT/mods/path-links)"* ]]; then
+        claude plugin marketplace remove rsk-local >/dev/null || true
+    fi
 fi
 
 if [[ $purge -eq 1 ]]; then

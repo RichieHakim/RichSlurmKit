@@ -85,11 +85,15 @@ source ~/.bashrc
 The installer is non-interactive: it copies `config.example.yaml → config.yaml`
 (if missing), adds one `source` line to `~/.bashrc`, and installs a pinned,
 checksum-verified [zmx](https://github.com/neurosnap/zmx) binary for `m`.
+If `claude` is installed, it also installs the
+[path-links mod](#clicking-file-paths) as a Claude Code plugin.
 It stops if `envsubst` or PyYAML is missing and can't be installed, and warns
-if `conda` isn't on PATH.
+if `conda` isn't on PATH. It is safe to run again: after a `git pull`, re-run
+it to pick up new steps such as the mod.
 
-To uninstall: `./uninstall.sh`. Add `--purge` to also delete `config.yaml`,
-the zmx and devtunnel binaries, and the saved VS Code tunnel login.
+To uninstall: `./uninstall.sh`, which also removes the mod. Add `--purge` to
+also delete `config.yaml`, the zmx and devtunnel binaries, and the saved VS
+Code tunnel login.
 
 ## First-time setup
 
@@ -161,8 +165,7 @@ Overridable flags: `--account`, `--partition`, `--gres`, `--cores`, `--mem`,
 when you close the terminal, reload VS Code, or switch laptops. It wraps
 [zmx](https://github.com/neurosnap/zmx), which only keeps the session alive:
 output goes straight to your terminal instead of being redrawn by a
-multiplexer, so scrollback, selection, and Cmd+click on paths are handled by
-VS Code itself. There are no panes or tabs; use VS Code's terminal tabs and
+multiplexer. There are no panes or tabs; use VS Code's terminal tabs and
 splits.
 
 | | |
@@ -204,6 +207,30 @@ new job, `mcr` lets you pick one to resume.
 The zellij helpers (`z`, `zz`, `zc`, `zcr`, `zzc`, `zzcr`, `zsolo`, `zopen`)
 were the default before `m`. They still work and are documented in
 [docs/zellij.md](docs/zellij.md).
+
+## Clicking file paths
+
+Claude Code prints file paths as plain text, and VS Code only makes a path
+clickable when the whole path sits on one row. Claude breaks long paths across
+rows, so in a narrow terminal most of them can't be clicked. The `path-links`
+mod (`mods/path-links`, installed by `install.sh`) fixes this as Claude draws
+its replies: each path that exists on this node becomes a link to your `v`
+job's VS Code tunnel, and the link holds on every row the path spans. The
+model is told nothing, and the saved conversation keeps the plain paths.
+
+Cmd+click (Ctrl+click on Linux and Windows) a file to open it in the current
+VS Code window, at its line if the path has one (`bin/m:12`). A directory
+opens in a new window; no link can show a folder in the current window's
+file explorer.
+
+Links cover absolute and `~/` paths, relative paths with a slash (`lib/`,
+`bin/m`), and bare file names (`fig.png`). Relative paths are resolved
+against Claude's working directory. Code blocks, existing links and URLs are
+left alone. The tunnel must run on the same node as Claude. Run
+`/reload-plugins` in open sessions after installing or editing the mod.
+
+The mod uses Claude Code's mod API, which is in early access, so a Claude
+Code update can break it. Paths then show as plain text again.
 
 ## Config
 
