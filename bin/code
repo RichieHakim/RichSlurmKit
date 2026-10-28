@@ -1,23 +1,99 @@
 #!/bin/bash
-# Self-healing `code` wrapper.
+# `code` wrapper that opens files in a VS Code window that will answer.
 #
-# VS Code's IPC socket (VSCODE_IPC_HOOK_CLI -> /tmp/vscode-ipc-*.sock) rotates on
-# every reconnect / new window. Long-lived processes in an m or zellij session (e.g.
-# Claude Code, whose Ctrl+G runs `code --wait`) keep the *old* path and then fail
-# with "VSCode quit unexpectedly (exit code 1)" once that socket is gone.
+# `code` reaches VS Code through the socket named in VSCODE_IPC_HOOK_CLI. Each
+# VS Code terminal and window has its own socket, and a request on it goes to
+# the window that owns it. Programs in an m or zellij session (e.g. Claude Code,
+# whose Ctrl+G runs `code --wait`) keep the socket of the terminal the session
+# started in, which may have closed since. The newest socket is no safer: a
+# window that closed keeps its socket accepting requests for up to 3 hours
+# while VS Code waits for it to reconnect, and a request sent there never
+# returns. Claude Code is frozen while its Ctrl+G editor runs, so that hangs
+# the whole session.
 #
-# This wrapper repoints VSCODE_IPC_HOOK_CLI at the newest live socket on every
-# call, then hands off to the real `code` further down PATH. Net effect: `code`
-# (and Ctrl+G) keep working across reconnects with no manual fix or restart.
+# So each call tries these sockets in order and uses the first whose window
+# answers a status request (about 0.2 s):
+#   1. the terminals attached to this m session, most recent first,
+#   2. the inherited VSCODE_IPC_HOOK_CLI,
+#   3. your other listening sockets, newest first, checked all at once.
+# If none answers it says so and exits 1, instead of hanging. With --wait it
+# also keeps watch until the tab closes (see the end of this file).
 #
 # Must sit ahead of VS Code's remote-cli on PATH to take effect; shellrc.sh puts
 # bin/ first.
 
-# Point at your most recently modified VS Code IPC socket, if any exist. Only
-# your own: on a shared node /tmp also holds other users' sockets.
-newest=$(find /tmp -maxdepth 1 -name 'vscode-ipc-*.sock' -user "$(id -u)" \
-    -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-[ -n "$newest" ] && export VSCODE_IPC_HOOK_CLI="$newest"
+uid=$(id -u)
+
+answers() {
+    [ -S "$1" ] && curl -sf -o /dev/null -m 2 --unix-socket "$1" \
+        -H 'content-type: application/json' -d '{"type":"status"}' http://localhost/ 2>/dev/null
+}
+
+# Sockets of the terminals attached to m session $1, most recent first. Each
+# attached terminal runs `zmx attach NAME` (or `zmx a NAME`). The session's own
+# server has the same command line, but it is an ancestor of this process.
+# A terminal that is itself inside another m session (depth $2) contributes
+# that session's terminals first.
+attached_sockets() {
+    local pid args vars outer
+    for pid in $(ps -u "$uid" -o pid=,comm= --sort=-start_time | awk '$2 == "zmx" {print $1}'); do
+        [[ " $ancestors " == *" $pid "* ]] && continue
+        mapfile -d '' -t args < "/proc/$pid/cmdline" 2>/dev/null || continue
+        [[ ${args[1]} == a || ${args[1]} == attach ]] && [[ ${args[2]} == "$1" ]] || continue
+        vars=$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null)
+        outer=$(sed -n 's/^ZMX_SESSION=//p' <<< "$vars")
+        if [ -n "$outer" ] && [ "$outer" != "$1" ] && [ "$2" -lt 3 ]; then
+            attached_sockets "$outer" $(($2 + 1))
+        fi
+        sed -n 's/^VSCODE_IPC_HOOK_CLI=//p' <<< "$vars"
+    done
+}
+
+ancestors=""
+p=$$
+while [ "${p:-0}" -gt 1 ]; do
+    ancestors+=" $p"
+    p=$(sed 's/.*) //' "/proc/$p/stat" 2>/dev/null | cut -d' ' -f2)
+done
+
+candidates=()
+[ -n "$ZMX_SESSION" ] && mapfile -t candidates < <(attached_sockets "$ZMX_SESSION" 0)
+candidates+=("$VSCODE_IPC_HOOK_CLI")
+
+chosen=""
+tried=" "
+for s in "${candidates[@]}"; do
+    [ -n "$s" ] && [[ $tried != *" $s "* ]] || continue
+    tried+="$s "
+    if answers "$s"; then chosen=$s; break; fi
+done
+
+if [ -z "$chosen" ]; then
+    others=()
+    while read -r s; do
+        [ -O "$s" ] && [[ $tried != *" $s "* ]] && others+=("$s")
+    done < <(ss -xlH 2>/dev/null | awk '{print $5}' | grep '^/tmp/vscode-ipc-.*\.sock$' |
+        xargs -r ls -t 2>/dev/null)
+    if [ ${#others[@]} -gt 0 ]; then
+        ok=$(mktemp -d)
+        for i in "${!others[@]}"; do
+            { answers "${others[$i]}" && touch "$ok/$i"; } &
+        done
+        wait
+        for i in "${!others[@]}"; do
+            if [ -e "$ok/$i" ]; then chosen=${others[$i]}; break; fi
+        done
+        rm -rf "$ok"
+    fi
+fi
+
+if [ -n "$chosen" ]; then
+    export VSCODE_IPC_HOOK_CLI="$chosen"
+elif [ ${#tried} -gt 1 ] || [ -n "${others[*]}" ]; then
+    echo "code (rsk wrapper): no VS Code window on this node answered. Run it from" \
+        "a VS Code terminal here, or attach this m session from one (m a NAME)." >&2
+    exit 1
+fi
 
 # Find the next `code` on PATH that is not this wrapper (resolve symlinks so a
 # symlink to this file elsewhere on PATH doesn't match itself and recurse).
@@ -37,4 +113,63 @@ if [ -z "$real" ]; then
     exit 127
 fi
 
-exec "$real" "$@"
+# Only `--wait` (without `-`, a file read from stdin) needs watching.
+watch=0
+for a in "$@"; do
+    case $a in -w|--wait) watch=1 ;; -) watch=0; break ;; esac
+done
+[ "$watch" = 1 ] && [ -n "$chosen" ] || exec "$real" "$@"
+
+# The window can still go away while its tab is open, or the tab can land in a
+# window you can't see. Claude Code stays frozen until this returns, so watch:
+# stop when VS Code fails 3 checks in a row (30 s), or when Enter is pressed
+# here. Claude then reports that the editor quit and keeps the draft as it was.
+"$real" "$@" &
+child=$!
+# Keys pressed in the terminal meanwhile would reach Claude once it unfreezes
+# and replay (each Ctrl+G opening another tab), so they are dropped on exit.
+drop_typed() {
+    if [ -t 0 ]; then
+        while read -r -s -t 0.05 -n 4096 _; do :; done
+    fi
+}
+stop() {
+    pkill -TERM -P "$child" 2>/dev/null
+    kill -TERM "$child" 2>/dev/null
+    drop_typed
+    exit "$1"
+}
+trap 'stop 130' INT TERM HUP
+
+tty=0
+if [ -t 0 ]; then
+    tty=1
+    # Drop lines typed earlier, e.g. while a previous editor was stuck.
+    while read -r -t 0.05 _; do :; done
+    echo "Waiting for VS Code to close the tab. Press Enter here to cancel." >&2
+fi
+ticks=0
+misses=0
+while kill -0 "$child" 2>/dev/null; do
+    if [ "$tty" = 1 ]; then
+        read -r -t 0.5 _
+        case $? in
+            0) stop 1 ;;
+            1) tty=0 ;;  # end of input; stop reading
+        esac
+    else
+        sleep 0.5
+    fi
+    ticks=$((ticks + 1))
+    if [ $((ticks % 20)) = 0 ] && kill -0 "$child" 2>/dev/null; then
+        if answers "$chosen"; then misses=0; else misses=$((misses + 1)); fi
+        if [ "$misses" -ge 3 ]; then
+            echo "code (rsk wrapper): VS Code stopped answering; gave up waiting." >&2
+            stop 1
+        fi
+    fi
+done
+wait "$child"
+status=$?
+drop_typed
+exit "$status"
