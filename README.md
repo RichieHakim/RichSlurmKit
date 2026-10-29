@@ -226,8 +226,11 @@ file explorer.
 Links cover absolute and `~/` paths, relative paths with a slash (`lib/`,
 `bin/m`), and bare file names (`fig.png`). Relative paths are resolved
 against Claude's working directory. Code blocks, existing links and URLs are
-left alone. The tunnel must run on the same node as Claude. Run
-`/reload-plugins` in open sessions after installing or editing the mod.
+left alone. Files Claude sends you while Remote Control is on (the
+`› [image] path` lines under its message) get the same links; Claude's own
+`file://` links there open nothing. The tunnel must run on the same node as
+Claude. Run `/reload-plugins` in open sessions after installing or editing
+the mod.
 
 The mod uses Claude Code's mod API, which is in early access, so a Claude
 Code update can break it. Paths then show as plain text again.

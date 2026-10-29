@@ -1,4 +1,4 @@
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 // Draws the file and directory paths in Claude's replies as links to this
 // node's VS Code tunnel. Only the drawing changes: the model is told nothing
@@ -11,11 +11,18 @@ import type { Register } from 'claude-code'
 // vscode://vscode-remote/tunnel+NAME/<path> opens it on the cluster. A file
 // opens at its line in the current window. A directory gets ?windowId=_blank,
 // since a folder link otherwise replaces the current window's folder.
+//
+// Files Claude sends with SendUserFile or SendUserMessage (on while Remote
+// Control is) are listed under the caption as `› [image] path (size)`, each
+// path a file:// link Claude builds itself. Those lines are drawn again here
+// with tunnel links.
 
 export type Kind = 'file' | 'dir'
 export type Env = { base: string; home: string }
 export type Candidate = { path: string; line?: string; col?: string }
 type Link = (c: Candidate) => string | null
+export type Attachment = { path: string; size: number; isImage: boolean }
+const SENDS = new Set(['SendUserFile', 'SendUserMessage'])
 
 // Characters a path may hold here. No spaces, quotes or brackets, so prose
 // around a path never joins it. A path is absolute, ~/ or ./, relative with a
@@ -143,9 +150,50 @@ export function url(env: Env, abs: string, kind: Kind, c: Candidate): string {
   return `${env.base}${path}:${c.line ?? '1'}${c.col ? ':' + c.col : ''}`
 }
 
+// A sent file's path as Claude shows it: relative inside the working
+// directory, else from ~ when under home.
+export function shown(abs: string, cwd: string, home: string): string {
+  if (abs.startsWith(cwd + '/')) return abs.slice(cwd.length + 1)
+  if (home !== '' && abs.startsWith(home + '/')) return '~' + abs.slice(home.length)
+  return abs
+}
+
+// A file size as Claude shows it: 97 bytes, 209.9KB, 3MB.
+export function size(bytes: number): string {
+  let n = bytes / 1024
+  if (n < 1) return `${bytes} bytes`
+  for (const unit of ['KB', 'MB']) {
+    if (n < 1024) return `${n.toFixed(1).replace(/\.0$/, '')}${unit}`
+    n /= 1024
+  }
+  return `${n.toFixed(1).replace(/\.0$/, '')}GB`
+}
+
+// The tunnel, looked for once and again each minute until one is found. Rows
+// drawn while a lookup runs wait for it: after /reload-plugins every row is
+// drawn at once, and one that went ahead would keep its plain drawing.
+type Tunnel = { env: Env | null; checkedAt: number; lookup?: Promise<Env | null> }
+async function findTunnel($: EngineInterface, t: Tunnel, now: number): Promise<Env | null> {
+  if (t.env === null && t.lookup === undefined && now - t.checkedAt > 60_000) {
+    t.checkedAt = now
+    t.lookup = lookTunnel($).finally(() => (t.lookup = undefined))
+  }
+  if (t.lookup !== undefined) t.env = await t.lookup
+  return t.env
+}
+
+async function lookTunnel($: EngineInterface): Promise<Env | null> {
+  const r = await $.process.run(
+    ['sh', '-c', 'printf "%s\\n" "$HOME" "$SLURM_JOB_ID"; pgrep -a -u "$(id -u)" -x code'],
+    { timeoutMs: 5_000 },
+  )
+  const [home = '', jobId = '', ...rest] = r.stdout.split('\n')
+  const name = tunnelName(rest, jobId)
+  return name === null ? null : { base: `vscode://vscode-remote/tunnel+${name}`, home }
+}
+
 export const register: Register = on => {
-  let env: Env | null = null
-  let checkedAt = -Infinity
+  const t: Tunnel = { env: null, checkedAt: -Infinity }
   // What each absolute path is, null when missing, and when that was checked.
   // A missing path is checked again after 30 s, as Claude may be about to
   // write it. Cleared when it grows large.
@@ -154,20 +202,9 @@ export const register: Register = on => {
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (e.surface !== 'terminal') return next(e)
     try {
-      // Look for the tunnel once, and again each minute until one is found.
       const now = await $.clock.now()
-      if (env === null && now - checkedAt > 60_000) {
-        checkedAt = now
-        const r = await $.process.run(
-          ['sh', '-c', 'printf "%s\\n" "$HOME" "$SLURM_JOB_ID"; pgrep -a -u "$(id -u)" -x code'],
-          { timeoutMs: 5_000 },
-        )
-        const [home = '', jobId = '', ...rest] = r.stdout.split('\n')
-        const name = tunnelName(rest, jobId)
-        env = name === null ? null : { base: `vscode://vscode-remote/tunnel+${name}`, home }
-      }
-      if (env === null) return next(e)
-      const tunnel = env
+      const tunnel = await findTunnel($, t, now)
+      if (tunnel === null) return next(e)
 
       const cwd = await $.session.cwd()
       const paths = [...new Set(candidates(e.props.text).map(c => absolute(c.path, cwd, tunnel.home)))]
@@ -191,6 +228,41 @@ export const register: Register = on => {
         return kind ? url(tunnel, abs, kind, c) : null
       })
       return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
+    } catch {
+      return next(e)
+    }
+  })
+
+  // Claude draws the caption with no files; the files follow as Claude would
+  // list them, each existing one a tunnel link.
+  on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
+    const output = e.props.output as { attachments?: Attachment[] } | undefined
+    const files = output?.attachments
+    if (e.surface !== 'terminal' || !SENDS.has(e.props.tool) || e.props.isErrored || !files?.length) return next(e)
+    try {
+      const tunnel = await findTunnel($, t, await $.clock.now())
+      if (tunnel === null) return next(e)
+      const cwd = await $.session.cwd()
+      const exists = await Promise.all(
+        files.map(f => (f.path.startsWith('/') ? $.fs.stat(f.path).then(s => s.kind === 'file', () => false) : false)),
+      )
+
+      const { Box, Text, Link } = $.ui.resolve(e)
+      const rows = files.map((f, i) => {
+        const label = shown(f.path, cwd, tunnel.home)
+        return Text({
+          children: [
+            Text({ dimColor: true, children: `› ${f.isImage ? '[image]' : '[file]'} ` }),
+            exists[i] ? Link({ href: url(tunnel, f.path, 'file', { path: f.path }), children: label }) : label,
+            Text({ dimColor: true, children: ` (${size(f.size)})` }),
+          ],
+        })
+      })
+      const caption = await next({ ...e, props: { ...e.props, output: { ...output, attachments: [] } } })
+      return Box({
+        flexDirection: 'column',
+        children: [caption, Box({ flexDirection: 'column', marginTop: 1, paddingLeft: 2, children: rows })],
+      })
     } catch {
       return next(e)
     }

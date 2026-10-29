@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { absolute, candidates, linkify, tunnelName, url } from '../hooks/register'
+import { absolute, candidates, linkify, shown, size, tunnelName, url } from '../hooks/register'
 import type { Env } from '../hooks/register'
 
 const ENV: Env = { base: 'vscode://vscode-remote/tunnel+tunnel-9', home: '/home/u' }
@@ -98,6 +98,13 @@ describe('helpers', () => {
     expect(tunnelName(lines, '')).toBe('tunnel-2')
     expect(tunnelName(['12 /scratch/code agent host'], '1')).toBe(null)
   })
+
+  test('shown and size match how Claude lists a sent file', () => {
+    expect(shown('/home/u/repo/fig.png', CWD, ENV.home)).toBe('fig.png')
+    expect(shown('/home/u/fig.png', CWD, ENV.home)).toBe('~/fig.png')
+    expect(shown('/lab/fig.png', CWD, ENV.home)).toBe('/lab/fig.png')
+    expect([97, 1024, 214937, 3 * 1024 ** 2, 1.5 * 1024 ** 3].map(size)).toEqual(['97 bytes', '1KB', '209.9KB', '3MB', '1.5GB'])
+  })
 })
 
 const REPLY = {
@@ -147,4 +154,76 @@ test('without a tunnel the reply is drawn as written', async ($, on) => {
   await ui.unmount()
 
   expect(drawn).toEqual(['Wrote /home/u/repo/bin/m'])
+})
+
+test('files Claude sends are listed again with tunnel links', async ($, on) => {
+  on('clock.now', () => ({ value: 0 }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: PGREP, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+  on('session.cwd', () => ({ value: CWD }))
+  on('fs.stat', (_, e) => {
+    const kind = KINDS[e.path]
+    return kind ? { value: { kind, size: 0, mtimeMs: 0, isLink: false } } : { deny: 'ENOENT' }
+  })
+  // Stands for the engine: records the files it was asked to list.
+  const listed: unknown[] = []
+  on('ui.render', { component: 'ToolResult' }, ($, e) => {
+    listed.push((e.props.output as { attachments: unknown[] }).attachments.length)
+    const { Text } = $.ui.resolve(e)
+    return <Text>caption</Text>
+  })
+
+  const output = {
+    caption: 'caption',
+    attachments: [
+      { path: '/home/u/fig.png', size: 214937, isImage: true, pathValidated: true },
+      { path: '/gone/report.pdf', size: 97, isImage: false, pathValidated: true },
+    ],
+  }
+  const ui = await $.ui.mount({
+    plugin: 'path-links',
+    component: 'ToolResult',
+    requestId: 'toolu-1',
+    surface: 'terminal',
+    props: { tool_use_id: 'toolu-1', tool: 'SendUserFile', output, isErrored: false },
+  })
+  const links = await ui.findAll({ type: 'Link' })
+  const text = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+  await ui.unmount()
+
+  const fig = 'vscode://vscode-remote/tunnel+tunnel-9/home/u/fig.png:1'
+  expect(listed).toEqual([0])
+  expect(links.map(l => [l.props.href, ...l.children])).toEqual([[fig, '~/fig.png']])
+  // A Link's text here is its address, then what it shows.
+  expect(text).toContain(`› [image] ${fig}~/fig.png (209.9KB)`)
+  expect(text).toContain('› [file] /gone/report.pdf (97 bytes)')
+})
+
+test('rows drawn while the tunnel lookup runs wait for it', async ($, on) => {
+  on('clock.now', () => ({ value: 0 }))
+  let lookups = 0
+  on('process.run', async () => {
+    lookups += 1
+    await Promise.resolve()
+    return { value: { exitCode: 0, stdout: PGREP, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  on('session.cwd', () => ({ value: CWD }))
+  on('fs.stat', (_, e) => {
+    const kind = KINDS[e.path]
+    return kind ? { value: { kind, size: 0, mtimeMs: 0, isLink: false } } : { deny: 'ENOENT' }
+  })
+  const drawn: string[] = []
+  on('ui.render', { component: 'AssistantMessage' }, ($, e) => {
+    drawn.push(e.props.text)
+    const { Text } = $.ui.resolve(e)
+    return <Text>{e.props.text}</Text>
+  })
+
+  const uis = await Promise.all([
+    $.ui.mount({ ...REPLY, surface: 'terminal' }),
+    $.ui.mount({ ...REPLY, requestId: 'msg-2', surface: 'terminal' }),
+  ])
+  await Promise.all(uis.map(ui => ui.unmount()))
+
+  expect(lookups).toBe(1)
+  expect(drawn).toEqual([`Wrote [/home/u/repo/bin/m](${F}:1)`, `Wrote [/home/u/repo/bin/m](${F}:1)`])
 })
