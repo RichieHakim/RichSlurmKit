@@ -86,14 +86,16 @@ The installer is non-interactive: it copies `config.example.yaml → config.yaml
 (if missing), adds one `source` line to `~/.bashrc`, and installs a pinned,
 checksum-verified [zmx](https://github.com/neurosnap/zmx) binary for `m`.
 If `claude` is installed, it also installs the
-[path-links mod](#clicking-file-paths) as a Claude Code plugin.
+[path-links mod](#clicking-file-paths) as a Claude Code plugin. Run from a VS
+Code terminal, it also installs the
+[claude-paste extension](#pasting-images) there.
 It stops if `envsubst` or PyYAML is missing and can't be installed, and warns
 if `conda` isn't on PATH. It is safe to run again: after a `git pull`, re-run
 it to pick up new steps such as the mod.
 
-To uninstall: `./uninstall.sh`, which also removes the mod. Add `--purge` to
-also delete `config.yaml`, the zmx and devtunnel binaries, and the saved VS
-Code tunnel login.
+To uninstall: `./uninstall.sh`, which also removes the mod and the extension.
+Add `--purge` to also delete `config.yaml`, the zmx and devtunnel binaries,
+the saved VS Code tunnel login, and pasted images.
 
 ## First-time setup
 
@@ -235,6 +237,28 @@ the mod.
 The mod uses Claude Code's mod API, which is in early access, so a Claude
 Code update can break it. Paths then show as plain text again.
 
+## Pasting images
+
+Claude's Ctrl+V looks for an image in the node's clipboard, which is empty,
+since the one you copied to is on your laptop. The `claude-paste` VS Code
+extension (`vscode/claude-paste`) handles Ctrl+V in VS Code terminals on the
+node instead. It reads the laptop's clipboard through a VS Code page, which
+shows as a "Clipboard" tab for a moment. It saves the image under `~/.cache/claude-paste/`
+on the node and pastes its path, which Claude shows as `[Image #1]`. If the
+clipboard holds no image, Claude gets the Ctrl+V as before. Cmd+V still pastes
+text.
+
+Install it by running `./install.sh` from a VS Code terminal on the node; it
+then works in every VS Code window on the node. Images older than 7 days are
+deleted, and each paste logs a line to `~/.cache/claude-paste/log.txt`.
+
+To let it see Ctrl+V before the terminal does, the extension adds itself to
+`terminal.integrated.commandsToSkipShell` in the node's Remote settings. In
+windows on the node, that list replaces the one in your laptop's settings.
+
+Tried with screenshots on a Mac. Files copied in Finder are untested, as is
+Alt+V, which takes the place of Ctrl+V on Windows and Linux laptops.
+
 ## Config
 
 `config.yaml` lives next to this README, gitignored. Every script re-reads it
@@ -276,6 +300,7 @@ See `config.example.yaml` for the schema and required edits.
 - Cached `devtunnel` binary (auto-installed by `vclean`): `~/.local/share/richslurmkit/bin/devtunnel`
 - zmx binary: `~/.local/share/richslurmkit/zmx/<version>/zmx`, linked from `~/.local/bin/zmx`.
   Session sockets and logs: `/tmp/zmx-<uid>/` on each node.
+- Pasted images and the paste log: `~/.cache/claude-paste/` (images kept 7 days)
 - Rendered job templates (per-submit): `/tmp/rsk-*.job` (auto-deleted)
 
 ## License

@@ -1,0 +1,44 @@
+{
+  "name": "claude-paste",
+  "displayName": "Claude paste (RichSlurmKit)",
+  "description": "Ctrl+V in a terminal on a remote machine pastes the laptop's clipboard image or copied file, saved on that machine, as its path. Claude Code turns a pasted image path into [Image #N].",
+  "version": "0.1.0",
+  "publisher": "richslurmkit",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudePaste.paste",
+        "title": "Claude Paste: paste the clipboard's image or file into the terminal"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "claudePaste.paste",
+        "key": "ctrl+v",
+        "when": "terminalFocus && isMac",
+        "args": {
+          "key": "\u0016"
+        }
+      },
+      {
+        "command": "claudePaste.paste",
+        "key": "alt+v",
+        "when": "terminalFocus && !isMac",
+        "args": {
+          "key": "\u001bv"
+        }
+      }
+    ]
+  }
+}

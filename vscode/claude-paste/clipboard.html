@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-NONCE'; style-src 'unsafe-inline'">
+</head>
+<body>
+<p style="font: 12px sans-serif; opacity: 0.6">Reading the clipboard…</p>
+<textarea id="sink" style="position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0"></textarea>
+<script nonce="NONCE">
+// Runs on the laptop. Reads the clipboard's files or image and posts them to
+// the extension, base64-encoded. VS Code lets webviews read the clipboard two
+// ways, tried in turn: a paste event from execCommand('paste'), which also
+// carries files copied in Finder or Explorer, then the async clipboard API,
+// which carries images only. Both need this frame focused, which VS Code does
+// shortly after the panel opens. `seen` goes to the extension's log, to show
+// which way worked or why neither did.
+const vscode = acquireVsCodeApi()
+const sink = document.getElementById('sink')
+const seen = []
+let fromEvent = null
+
+sink.addEventListener('paste', e => {
+  e.preventDefault()
+  const d = e.clipboardData
+  seen.push('paste event: ' + [...d.types].join(','))
+  let list = [...d.files]
+  if (list.length === 0) list = [...d.items].filter(i => i.kind === 'file').map(i => i.getAsFile()).filter(Boolean)
+  fromEvent = list
+})
+
+function base64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ''))
+    r.onerror = () => reject(r.error)
+    r.readAsDataURL(blob)
+  })
+}
+
+async function fromApi() {
+  const out = []
+  for (const item of await navigator.clipboard.read()) {
+    seen.push('clipboard api: ' + item.types.join(','))
+    const type = item.types.find(t => t.startsWith('image/'))
+    if (type) out.push(new File([await item.getType(type)], '', { type }))
+  }
+  return out
+}
+
+async function read() {
+  sink.focus()
+  let list = []
+  try {
+    seen.push('execCommand: ' + document.execCommand('paste'))
+  } catch (e) {
+    seen.push('execCommand threw: ' + e)
+  }
+  if (fromEvent && fromEvent.length > 0) list = fromEvent
+  else {
+    try {
+      list = await fromApi()
+    } catch (e) {
+      seen.push('clipboard api failed: ' + e)
+    }
+  }
+  const files = []
+  for (const f of list) files.push({ name: f.name, type: f.type, data: await base64(f) })
+  vscode.postMessage({ files, note: seen.join('; ') })
+}
+
+// Wait up to 2 s for focus, then try anyway so the log says what happened.
+const start = Date.now()
+;(function wait() {
+  if (document.hasFocus() || Date.now() - start > 2000) {
+    if (!document.hasFocus()) seen.push('never got focus')
+    read().catch(e => vscode.postMessage({ files: [], note: seen.concat('failed: ' + e).join('; ') }))
+  } else setTimeout(wait, 25)
+})()
+</script>
+</body>
+</html>

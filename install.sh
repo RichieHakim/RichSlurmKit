@@ -5,6 +5,7 @@
 # - Adds a marker block to ~/.bashrc that sources shell/shellrc.sh
 # - Installs zmx (for `m`), and links the zellij config if zellij is installed
 # - Installs the path-links Claude Code mod (clickable file paths) if claude is installed
+# - Installs the claude-paste VS Code extension (image paste) if run in a VS Code terminal
 set -euo pipefail
 
 RSK_ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
@@ -130,7 +131,30 @@ else
     yellow "              claude plugin install path-links@rsk-local"
 fi
 
-# 8. Detect whether config still has REPLACE-me placeholders; tailor the
+# 8. The claude-paste VS Code extension, which makes Ctrl+V in a VS Code
+# terminal paste the laptop's clipboard image into Claude (README, "Pasting
+# images"). `code` reaches VS Code only from one of its terminals, so from
+# anywhere else this step is skipped. A failure here only affects pasting.
+ext_dir="$RSK_ROOT/vscode/claude-paste"
+ext_id="richslurmkit.claude-paste@$("$python_bin" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' "$ext_dir/package.json")"
+vsix_dir=""
+if ! command -v code &>/dev/null || ! installed=$(code --list-extensions --show-versions 2>/dev/null); then
+    echo "No VS Code window answered; skipping the claude-paste extension"
+    echo "  To install it, run ./install.sh again from a VS Code terminal on the node."
+elif grep -qxF "$ext_id" <<< "$installed"; then
+    green "claude-paste extension already installed"
+elif vsix_dir=$(mktemp -d) &&
+     "$python_bin" "$ext_dir/pack.py" "$vsix_dir/claude-paste.vsix" &&
+     code --install-extension "$vsix_dir/claude-paste.vsix" --force >/dev/null 2>&1; then
+    green "Installed the claude-paste VS Code extension (Ctrl+V pastes images into Claude)"
+else
+    yellow "Could not install the claude-paste extension; Ctrl+V won't paste images into Claude."
+    yellow "  Retry with: $python_bin $ext_dir/pack.py ~/claude-paste.vsix"
+    yellow "              code --install-extension ~/claude-paste.vsix"
+fi
+[[ -n "$vsix_dir" ]] && rm -r "$vsix_dir"
+
+# 9. Detect whether config still has REPLACE-me placeholders; tailor the
 # closing message to whichever state the user is actually in.
 needs_edits=0
 if grep -qE 'YOUR_[A-Z_]+' "$RSK_CONFIG"; then

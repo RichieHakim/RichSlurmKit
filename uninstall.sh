@@ -1,8 +1,9 @@
 #!/bin/bash
 # Uninstaller for RichSlurmKit.
-# Default: remove the sentinel block from ~/.bashrc and the path-links mod.
-# --purge: also remove config.yaml, the zmx and devtunnel binaries, and the
-# saved VS Code tunnel login.
+# Default: remove the sentinel block from ~/.bashrc, the path-links mod and the
+# claude-paste VS Code extension.
+# --purge: also remove config.yaml, the zmx and devtunnel binaries, the saved
+# VS Code tunnel login, and pasted images.
 set -euo pipefail
 
 RSK_ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
@@ -12,7 +13,8 @@ for arg in "$@"; do
         --purge) purge=1 ;;
         -h|--help)
             echo "Usage: ./uninstall.sh [--purge]"
-            echo "  --purge   Also delete config.yaml and ~/.local/share/richslurmkit/ (binaries, tunnel login)"
+            echo "  --purge   Also delete config.yaml, ~/.local/share/richslurmkit/ (binaries, tunnel login)"
+            echo "            and ~/.cache/claude-paste/ (pasted images)"
             exit 0
             ;;
         *) echo "Unknown argument: $arg" >&2; exit 2 ;;
@@ -56,6 +58,34 @@ if command -v claude &>/dev/null; then
     fi
 fi
 
+# The claude-paste VS Code extension, then the commandsToSkipShell entry it
+# added to the node's Remote settings. `code` reaches VS Code only from one of
+# its terminals.
+if command -v code &>/dev/null &&
+   code --list-extensions 2>/dev/null | grep -qx richslurmkit.claude-paste &&
+   code --uninstall-extension richslurmkit.claude-paste >/dev/null 2>&1; then
+    echo "Removed the claude-paste VS Code extension"
+fi
+machine_settings="$HOME/.vscode-server/data/Machine/settings.json"
+if [[ -f "$machine_settings" ]] && grep -qF claudePaste.paste "$machine_settings"; then
+    python3 - "$machine_settings" <<'EOF' && echo "Removed claudePaste.paste from $machine_settings"
+import json, sys
+path, key = sys.argv[1], "terminal.integrated.commandsToSkipShell"
+try:
+    settings = json.load(open(path))
+except ValueError:
+    sys.exit(f"{path} isn't plain JSON; remove claudePaste.paste from {key} by hand.")
+rest = [c for c in settings.get(key, []) if c != "claudePaste.paste"]
+if rest:
+    settings[key] = rest
+else:
+    settings.pop(key, None)
+with open(path, "w") as f:
+    f.write(json.dumps(settings, indent=4) + "\n")
+EOF
+    rm -f "$machine_settings.bak-claude-paste"
+fi
+
 if [[ $purge -eq 1 ]]; then
     rm -f "$RSK_ROOT/config.yaml"
     # The zmx binary lives in the data dir below; drop our symlink to it.
@@ -66,7 +96,8 @@ if [[ $purge -eq 1 ]]; then
     rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/richslurmkit"
     # The job template keeps the tunnel login here regardless of XDG_DATA_HOME.
     rm -rf "$HOME/.local/share/richslurmkit/vscode-cli-auth"
-    echo "Purged config.yaml and ~/.local/share/richslurmkit/"
+    rm -rf "$HOME/.cache/claude-paste"
+    echo "Purged config.yaml, ~/.local/share/richslurmkit/ and ~/.cache/claude-paste/"
     echo "(Left in place: job logs in $RSK_ROOT/logs/.)"
 fi
 
