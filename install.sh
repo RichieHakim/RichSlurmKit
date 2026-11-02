@@ -6,6 +6,7 @@
 # - Installs zmx (for `m`), and links the zellij config if zellij is installed
 # - Installs the path-links Claude Code mod (clickable file paths) if claude is installed
 # - Installs the claude-paste VS Code extension (image paste) if run in a VS Code terminal
+# - Checks that a new shell runs the kit's commands, not others with the same names
 set -euo pipefail
 
 RSK_ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
@@ -154,7 +155,36 @@ else
 fi
 [[ -n "$vsix_dir" ]] && rm -r "$vsix_dir"
 
-# 9. Detect whether config still has REPLACE-me placeholders; tailor the
+# 9. Check that a new shell runs the kit's commands. shellrc.sh puts bin/ first
+# on PATH, but lines in ~/.bashrc after the RichSlurmKit block, and aliases or
+# shell functions with the same names, still come before it. The new shell's
+# own output (login banners and such) goes to /dev/null; the check writes to
+# fd 3, and ends with a marker line so a shell that died or hung isn't read as
+# a pass.
+cmds=("$RSK_ROOT"/bin/*)
+shadowed=$(timeout -s KILL 30 bash -ic '
+    bin=$1; shift
+    for c in "$@"; do
+        first=$(type -a -- "$c" 2>/dev/null | head -n 1)
+        [[ $first == "$c is $bin/$c" ]] || echo "  $first"
+    done >&3
+    echo __rsk_done__ >&3' _ "$RSK_ROOT/bin" "${cmds[@]##*/}" 3>&1 </dev/null >/dev/null 2>&1) || true
+if [[ "$shadowed" != *__rsk_done__ ]]; then
+    yellow "Couldn't check which commands a new shell runs (bash -ic didn't finish)."
+else
+    shadowed=${shadowed%__rsk_done__}
+    shadowed=${shadowed%$'\n'}
+    if [[ -n "$shadowed" ]]; then
+        yellow "In a new shell, these names run something other than the kit's command:"
+        echo "$shadowed"
+        yellow "  Something in ~/.bashrc after the RichSlurmKit block, or an alias or"
+        yellow "  function with the same name, comes first. Remove or rename it to use the kit's."
+    else
+        green "New shells run the kit's commands"
+    fi
+fi
+
+# 10. Detect whether config still has REPLACE-me placeholders; tailor the
 # closing message to whichever state the user is actually in.
 needs_edits=0
 if grep -qE 'YOUR_[A-Z_]+' "$RSK_CONFIG"; then

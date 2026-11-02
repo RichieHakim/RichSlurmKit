@@ -5,10 +5,17 @@
 RSK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export RSK_ROOT
 
-case ":$PATH:" in
-    *":$RSK_ROOT/bin:"*) ;;
-    *) export PATH="$RSK_ROOT/bin:$PATH" ;;
-esac
+# Put bin/ first on PATH, even when a parent shell already added it. ~/.bashrc
+# may add other folders before sourcing this file, and a shell started inside
+# another shell would otherwise find their same-named commands first.
+_rsk_path=":$PATH:"
+while [[ $_rsk_path == *":$RSK_ROOT/bin:"* ]]; do
+    _rsk_path=${_rsk_path//":$RSK_ROOT/bin:"/:}
+done
+_rsk_path=${_rsk_path#:}
+_rsk_path=${_rsk_path%:}
+export PATH="$RSK_ROOT/bin${_rsk_path:+:$_rsk_path}"
+unset _rsk_path
 
 # zmx (for m*) installs to ~/.local/bin. Add it, last, if the system didn't.
 case ":$PATH:" in

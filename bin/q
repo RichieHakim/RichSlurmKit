@@ -10,5 +10,12 @@ if ! [[ $period =~ ^[0-9]+([.][0-9]+)?$ ]]; then
     exit 2
 fi
 
-exec watch -n "$period" sacct -u "$user_to_show" -X -s R,PD \
+# Every state of a job that hasn't ended: running, pending, suspended (e.g.
+# paused for cluster maintenance), requeued, resizing. sacct counts a pending
+# job only once its start time (--begin) falls inside the time window, so the
+# window runs 7 days ahead: the longest that FASRC's sacct allows (slurmdbd's
+# MaxQueryTimeRange). If sacct says "Too wide of a date range", shorten it.
+# Jobs on hold or waiting for another job have no start time yet, so sacct
+# lists them in no window; squeue (or `sacct -j <ids>`) shows them.
+exec watch -n "$period" sacct -u "$user_to_show" -X -s R,PD,S,RQ,RS -S now -E now+7days \
     -o JobID%20,Partition%11,JobName%13,State%2,Elapsed,AllocTRES%50,NodeList,Reason%10

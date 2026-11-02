@@ -139,7 +139,7 @@ v                # submit the default preset
 | `p` | Launch a Jupyter session + open an SSH tunnel to it. `p [N]` selects a preset |
 | `pp` | Reconnect SSH tunnel to your running `p` job. Auto-picks if exactly one is running; prompts if multiple. Pass a job id (`pp 12345`) to target a specific one. |
 | `interactive` | Drop into an `srun` shell using the `interactive:` block in `config.yaml` |
-| `q [SECS]` | Watch `sacct` for your running/pending jobs |
+| `q [SECS]` | Watch `sacct` for your jobs that haven't ended: running, pending, or paused (e.g. for cluster maintenance). Doesn't show jobs set to start more than 7 days from now, on hold, or waiting for another job to finish; `squeue --me` does. |
 | `s` | `sshare` for your user |
 | `n` | `watch nvidia-smi` |
 | `m [args...]` | Keep sessions alive; see [Sessions](#sessions-m). |
@@ -281,7 +281,9 @@ See `config.example.yaml` for the schema and required edits.
 - **Command names.** `bin/` goes first on your PATH, so every command in it
   hides any program with the same name, such as `mc` (Midnight Commander) or
   `tc` (traffic control). Shell functions and aliases, such as zoxide's `z`,
-  still win over them.
+  still win over them, as do folders that `~/.bashrc` adds after the
+  RichSlurmKit block. `./install.sh` lists any command names a new shell
+  doesn't run from the kit.
 - **Log cleanup.** Each `v` or `p` deletes the slurm logs in `<repo>/logs/` of
   jobs that are no longer queued or running.
 - **Host keys.** `p` and `pp` ssh to compute nodes with host-key checking off,
