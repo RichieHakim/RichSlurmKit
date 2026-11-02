@@ -2,7 +2,8 @@
 # m -- session manager, wrapping zmx. zmx keeps sessions alive without a
 # terminal emulator in the middle, so output, hyperlinks included, goes
 # straight to VS Code. Arguments pass straight through to zmx, except that
-# bare `m` lists this node's sessions with the claude running in each.
+# bare `m` lists this node's sessions with the claude running in each, and
+# `m a` attaches through lib/keep_running.py (see rsk_mx_attach in lib/mx.sh).
 # Common: m a NAME (attach/create), m hi NAME (scrollback), m k NAME (kill),
 # m d (detach all clients of the current session). Ctrl+\ detaches this terminal.
 # Usage: m [zmx args...]
@@ -13,4 +14,7 @@ source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib/mx.sh"
 if [[ $# -eq 0 ]]; then
     exec "$RSK_MX_PY" ls
 fi
+case $1 in
+    a|attach) shift; rsk_mx_attach "$@" ;;
+esac
 exec zmx "$@"

@@ -187,6 +187,9 @@ Sessions live on the node they were started on. Start them from a terminal in
 your `v` job (VS Code's terminal), not inside `interactive`: everything started
 in an `srun` step dies when that step ends.
 
+VS Code names a terminal attached with `m a` or `mc` as `zmx <session>`. A
+terminal that switched sessions from inside one keeps its first name.
+
 Several terminals can attach to one session, for example from two laptops.
 They share one screen and one claude, and the size follows whichever terminal
 typed last. `lib/zmx_install.sh` (run by `install.sh`) installs the pinned zmx
@@ -200,6 +203,23 @@ allows multi-day runs (on FASRC Cannon, `intermediate`). Heavy work should
 still go to its own `sbatch` job: everything in this one shares its 32G.
 When a job ends, its claudes stop but their conversations are saved: in a
 new job, `mcr` lets you pick one to resume.
+
+**Cluster pauses.** FASRC pauses running jobs for its monthly maintenance
+(the first Monday). Slurm does this by sending every process in the job a stop
+signal (SIGTSTP) and freezing the job 2 seconds later. Left alone, that signal
+stops the zmx client in each VS Code terminal and the claude in each session,
+and the shells above them take the terminals back. After the pause, mouse
+moves print junk like `35;19;64M`, and a claude started by `mc` or `mcr`
+exits. So `m a`, `mc`, `mcr`, `c` and `cr` run zmx and claude through
+`lib/keep_running.py`, which resumes them as soon as the signal stops them.
+One side effect: Ctrl+Z in claude does nothing. A plain `claude` or
+`zmx attach` isn't covered, so resume a conversation with `c --resume <id>`
+rather than `claude --resume <id>`.
+
+If a terminal breaks anyway, press Ctrl+C and run `kill %1; m a <name>` to
+replace the stopped client. If that shows a shell prompt inside the session,
+`fg` brings claude back. Don't `fg` the zmx client itself: it comes back with
+the terminal sending keys a line at a time.
 
 ### Other session managers
 

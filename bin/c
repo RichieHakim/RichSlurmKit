@@ -13,4 +13,11 @@ if [[ -f "$config" && -n "$py" ]]; then
     read -ra flags <<< "${RSK_CLAUDE_FLAGS:-}"
 fi
 
-claude "${flags[@]}" "$@"
+# Through lib/keep_running.py, so that when Slurm pauses the job (it stops
+# every process with SIGTSTP), claude keeps the terminal instead of the shell
+# taking it back. Ctrl+Z in claude then does nothing.
+keep=()
+if py3=$(command -v python3); then
+    keep=("$py3" "$root/lib/keep_running.py")
+fi
+exec "${keep[@]}" claude "${flags[@]}" "$@"

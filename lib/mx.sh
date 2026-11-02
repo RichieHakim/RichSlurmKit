@@ -14,6 +14,20 @@ if ! command -v zmx >/dev/null 2>&1; then
     exit 1
 fi
 
+# Attach through lib/keep_running.py, so that when Slurm pauses the job (it
+# stops every process with SIGTSTP), the zmx client keeps the terminal
+# instead of handing it back to the shell. Without python3, attach directly.
+# The client runs as "zmx <session>", which VS Code shows as the tab's name.
+# Arguments as for `zmx attach`: [--labels kv] <name> [command...]
+rsk_mx_attach() {
+    local py session=$1
+    [[ $1 == --labels ]] && session=${3:-}
+    if py=$(command -v python3); then
+        exec "$py" "$_rsk_mx_root/lib/keep_running.py" --name "zmx $session" zmx attach "$@"
+    fi
+    exec -a "zmx $session" zmx attach "$@"
+}
+
 rsk_mx_exists() { zmx list --short 2>/dev/null | grep -qxF -- "$1"; }
 
 rsk_mx_next_name() {
