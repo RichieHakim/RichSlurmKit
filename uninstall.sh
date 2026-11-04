@@ -1,9 +1,9 @@
 #!/bin/bash
 # Uninstaller for RichSlurmKit.
-# Default: remove the sentinel block from ~/.bashrc, the path-links mod and the
-# claude-paste VS Code extension.
-# --purge: also remove config.yaml, the zmx and devtunnel binaries, the saved
-# VS Code tunnel login, and pasted images.
+# Default: remove the sentinel block from ~/.bashrc, the Claude Code mods
+# (path-links, speak) and the claude-paste VS Code extension.
+# --purge: also remove config.yaml, the zmx and devtunnel binaries, Kokoro,
+# the saved VS Code tunnel login, pasted images and /speak's audio files.
 set -euo pipefail
 
 RSK_ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
@@ -13,8 +13,9 @@ for arg in "$@"; do
         --purge) purge=1 ;;
         -h|--help)
             echo "Usage: ./uninstall.sh [--purge]"
-            echo "  --purge   Also delete config.yaml, ~/.local/share/richslurmkit/ (binaries, tunnel login)"
-            echo "            and ~/.cache/claude-paste/ (pasted images)"
+            echo "  --purge   Also delete config.yaml, ~/.local/share/richslurmkit/ (binaries, Kokoro,"
+            echo "            tunnel login), ~/.cache/claude-paste/ (pasted images) and"
+            echo "            ~/.cache/rsk-speak/ (/speak's audio files)"
             exit 0
             ;;
         *) echo "Unknown argument: $arg" >&2; exit 2 ;;
@@ -47,13 +48,17 @@ if [[ -L "$zellij_cfg_dst" ]] && [[ "$(readlink -f "$zellij_cfg_dst")" == "$(rea
     echo "Removed zellij config symlink"
 fi
 
-# The path-links Claude Code mod and the folder marketplace install.sh added for it.
+# The Claude Code mods and the folder marketplace install.sh added for them,
+# which older installs had at mods/path-links.
 if command -v claude &>/dev/null; then
-    if [[ "$(claude plugin list 2>/dev/null)" == *"path-links@rsk-local"* ]] &&
-       claude plugin uninstall path-links@rsk-local >/dev/null; then
-        echo "Removed the path-links Claude Code mod"
-    fi
-    if [[ "$(claude plugin marketplace list 2>/dev/null)" == *"($RSK_ROOT/mods/path-links)"* ]]; then
+    installed="$(claude plugin list 2>/dev/null || true)"
+    for mod in path-links speak; do
+        if [[ $installed == *"$mod@rsk-local"* ]] && claude plugin uninstall "$mod@rsk-local" >/dev/null; then
+            echo "Removed the $mod Claude Code mod"
+        fi
+    done
+    marketplaces="$(claude plugin marketplace list 2>/dev/null || true)"
+    if [[ $marketplaces == *"($RSK_ROOT/mods)"* || $marketplaces == *"($RSK_ROOT/mods/path-links)"* ]]; then
         claude plugin marketplace remove rsk-local >/dev/null || true
     fi
 fi
@@ -97,7 +102,8 @@ if [[ $purge -eq 1 ]]; then
     # The job template keeps the tunnel login here regardless of XDG_DATA_HOME.
     rm -rf "$HOME/.local/share/richslurmkit/vscode-cli-auth"
     rm -rf "$HOME/.cache/claude-paste"
-    echo "Purged config.yaml, ~/.local/share/richslurmkit/ and ~/.cache/claude-paste/"
+    rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/rsk-speak"
+    echo "Purged config.yaml, ~/.local/share/richslurmkit/, ~/.cache/claude-paste/ and ~/.cache/rsk-speak/"
     echo "(Left in place: job logs in $RSK_ROOT/logs/.)"
 fi
 

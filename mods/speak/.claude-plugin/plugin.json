@@ -1,0 +1,10 @@
+{
+  "name": "speak",
+  "version": "0.1.0",
+  "description": "/speak reads Claude's last reply aloud into an audio file with Kokoro (RichSlurmKit's bin/speak) and prints its path, which opens in VS Code. No turn of Claude's is spent.",
+  "author": {
+    "name": "RichieHakim",
+    "url": "https://github.com/RichieHakim"
+  },
+  "license": "MIT"
+}

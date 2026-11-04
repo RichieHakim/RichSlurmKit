@@ -4,7 +4,7 @@
 # - Creates config.yaml from config.example.yaml if missing
 # - Adds a marker block to ~/.bashrc that sources shell/shellrc.sh
 # - Installs zmx (for `m`), and links the zellij config if zellij is installed
-# - Installs the path-links Claude Code mod (clickable file paths) if claude is installed
+# - Installs the Claude Code mods (clickable file paths, /speak) if claude is installed
 # - Installs the claude-paste VS Code extension (image paste) if run in a VS Code terminal
 # - Checks that a new shell runs the kit's commands, not others with the same names
 set -euo pipefail
@@ -113,23 +113,35 @@ else
     green "Linked zellij config: $zellij_cfg_dst -> $zellij_cfg_src"
 fi
 
-# 7. The path-links mod, which makes file paths in Claude's replies clickable
-# in VS Code (README, "Clicking file paths"). Claude reads it from this folder,
-# so edits reach open sessions with /reload-plugins. A failure here only
-# affects path clicking.
-mod_dir="$RSK_ROOT/mods/path-links"
+# 7. The Claude Code mods in mods/: path-links, which makes file paths in
+# Claude's replies clickable in VS Code (README, "Clicking file paths"), and
+# speak, which adds /speak to hear a reply (README, "Hearing replies"). Claude
+# reads them from their folders, so edits reach open sessions with
+# /reload-plugins. The catalog used to be mods/path-links alone; adding mods/
+# under the same name, rsk-local, moves it. A failure here only affects the mods.
+mods_dir="$RSK_ROOT/mods"
 if ! command -v claude &>/dev/null; then
-    echo "claude not found; skipping the path-links mod"
-elif [[ "$(claude plugin list 2>/dev/null)" == *"path-links@rsk-local"* ]]; then
-    green "path-links mod already installed"
-elif { [[ "$(claude plugin marketplace list 2>/dev/null)" == *"($mod_dir)"* ]] ||
-       claude plugin marketplace add "$mod_dir" >/dev/null; } &&
-     claude plugin install path-links@rsk-local >/dev/null; then
-    green "Installed the path-links mod (run /reload-plugins in open Claude sessions)"
+    echo "claude not found; skipping the Claude Code mods"
+elif [[ "$(claude plugin marketplace list 2>/dev/null)" != *"($mods_dir)"* ]] &&
+     ! claude plugin marketplace add "$mods_dir" >/dev/null; then
+    yellow "Could not add the Claude Code mods; file paths stay unclickable and there's no /speak."
+    yellow "  Retry with: claude plugin marketplace add $mods_dir"
 else
-    yellow "Could not install the path-links mod; file paths stay unclickable."
-    yellow "  Retry with: claude plugin marketplace add $mod_dir"
-    yellow "              claude plugin install path-links@rsk-local"
+    installed="$(claude plugin list 2>/dev/null || true)"
+    for mod in path-links speak; do
+        if [[ $installed == *"$mod@rsk-local"* ]]; then
+            green "$mod mod already installed"
+        elif claude plugin install "$mod@rsk-local" >/dev/null; then
+            green "Installed the $mod mod (run /reload-plugins in open Claude sessions)"
+        else
+            yellow "Could not install the $mod mod. Retry with: claude plugin install $mod@rsk-local"
+        fi
+    done
+    # Not installed here: it's about 800 MB.
+    data_dir="${RSK_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/richslurmkit}"
+    if [[ ! -f $data_dir/kokoro/voices-v1.0.bin ]]; then
+        echo "/speak needs Kokoro, about 800 MB. Install it with: $RSK_ROOT/lib/kokoro_install.sh"
+    fi
 fi
 
 # 8. The claude-paste VS Code extension, which makes Ctrl+V in a VS Code

@@ -1,0 +1,13 @@
+#!/bin/bash
+# speak -- read text aloud into an audio file with Kokoro, and print its path.
+# The /speak command in Claude (mods/speak) runs this on Claude's last reply;
+# open the file in VS Code to hear it. Install Kokoro with lib/kokoro_install.sh.
+# Usage: speak [--voice V] [--speed S] [text...]   (reads stdin with no text)
+root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+data_dir="${RSK_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/richslurmkit}"
+py="$data_dir/kokoro/venv/bin/python"
+if [[ ! -x $py || ! -f $data_dir/kokoro/voices-v1.0.bin ]]; then
+    echo "speak: Kokoro is not installed. Install it with: $root/lib/kokoro_install.sh" >&2
+    exit 1
+fi
+exec "$py" "$root/lib/speak.py" "$@"

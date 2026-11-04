@@ -227,3 +227,30 @@ test('rows drawn while the tunnel lookup runs wait for it', async ($, on) => {
   expect(lookups).toBe(1)
   expect(drawn).toEqual([`Wrote [/home/u/repo/bin/m](${F}:1)`, `Wrote [/home/u/repo/bin/m](${F}:1)`])
 })
+
+test("a slash command's output gets tunnel links too", async ($, on) => {
+  on('clock.now', () => ({ value: 0 }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: PGREP, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+  on('session.cwd', () => ({ value: CWD }))
+  on('fs.stat', (_, e) => {
+    const kind = KINDS[e.path]
+    return kind ? { value: { kind, size: 0, mtimeMs: 0, isLink: false } } : { deny: 'ENOENT' }
+  })
+  const drawn: string[] = []
+  on('ui.render', { component: 'CommandOutput' }, ($, e) => {
+    drawn.push(e.props.text)
+    const { Text } = $.ui.resolve(e)
+    return <Text>{e.props.text}</Text>
+  })
+
+  const ui = await $.ui.mount({
+    plugin: 'path-links',
+    component: 'CommandOutput',
+    requestId: 'cmd-1',
+    surface: 'terminal',
+    props: { command: 'speak', args: '', text: 'Audio: /home/u/fig.png', isErrored: false },
+  })
+  await ui.unmount()
+
+  expect(drawn).toEqual(['Audio: [/home/u/fig.png](vscode://vscode-remote/tunnel+tunnel-9/home/u/fig.png:1)'])
+})

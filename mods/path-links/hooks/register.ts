@@ -192,45 +192,60 @@ async function lookTunnel($: EngineInterface): Promise<Env | null> {
   return name === null ? null : { base: `vscode://vscode-remote/tunnel+${name}`, home }
 }
 
+// `markdown` with each path that exists drawn as a tunnel link, or as it was
+// when there's no tunnel or anything fails.
+type Kinds = Map<string, { kind: Kind | null; at: number }>
+async function linkedText($: EngineInterface, t: Tunnel, kinds: Kinds, markdown: string): Promise<string> {
+  try {
+    const now = await $.clock.now()
+    const tunnel = await findTunnel($, t, now)
+    if (tunnel === null) return markdown
+
+    const cwd = await $.session.cwd()
+    const paths = [...new Set(candidates(markdown).map(c => absolute(c.path, cwd, tunnel.home)))]
+    if (kinds.size > 5_000) kinds.clear()
+    await Promise.all(
+      paths
+        .filter(p => {
+          const known = kinds.get(p)
+          return known === undefined || (known.kind === null && now - known.at > 30_000)
+        })
+        .slice(0, 200)
+        .map(async p => {
+          const stat = await $.fs.stat(p).catch(() => null)
+          kinds.set(p, { kind: stat?.kind === 'file' || stat?.kind === 'dir' ? stat.kind : null, at: now })
+        }),
+    )
+
+    return linkify(markdown, c => {
+      const abs = absolute(c.path, cwd, tunnel.home)
+      const kind = kinds.get(abs)?.kind
+      return kind ? url(tunnel, abs, kind, c) : null
+    })
+  } catch {
+    return markdown
+  }
+}
+
 export const register: Register = on => {
   const t: Tunnel = { env: null, checkedAt: -Infinity }
   // What each absolute path is, null when missing, and when that was checked.
   // A missing path is checked again after 30 s, as Claude may be about to
   // write it. Cleared when it grows large.
-  const kinds = new Map<string, { kind: Kind | null; at: number }>()
+  const kinds: Kinds = new Map()
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (e.surface !== 'terminal') return next(e)
-    try {
-      const now = await $.clock.now()
-      const tunnel = await findTunnel($, t, now)
-      if (tunnel === null) return next(e)
+    const text = await linkedText($, t, kinds, e.props.text)
+    return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
+  })
 
-      const cwd = await $.session.cwd()
-      const paths = [...new Set(candidates(e.props.text).map(c => absolute(c.path, cwd, tunnel.home)))]
-      if (kinds.size > 5_000) kinds.clear()
-      await Promise.all(
-        paths
-          .filter(p => {
-            const known = kinds.get(p)
-            return known === undefined || (known.kind === null && now - known.at > 30_000)
-          })
-          .slice(0, 200)
-          .map(async p => {
-            const stat = await $.fs.stat(p).catch(() => null)
-            kinds.set(p, { kind: stat?.kind === 'file' || stat?.kind === 'dir' ? stat.kind : null, at: now })
-          }),
-      )
-
-      const text = linkify(e.props.text, c => {
-        const abs = absolute(c.path, cwd, tunnel.home)
-        const kind = kinds.get(abs)?.kind
-        return kind ? url(tunnel, abs, kind, c) : null
-      })
-      return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
-    } catch {
-      return next(e)
-    }
+  // A slash command's output, such as the audio file the speak mod's /speak
+  // makes.
+  on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
+    if (e.surface !== 'terminal') return next(e)
+    const text = await linkedText($, t, kinds, e.props.text)
+    return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
   })
 
   // Claude draws the caption with no files; the files follow as Claude would

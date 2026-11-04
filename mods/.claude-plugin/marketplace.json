@@ -2,5 +2,8 @@
   "name": "rsk-local",
   "owner": { "name": "RichieHakim" },
   "metadata": { "description": "Claude Code mods from RichSlurmKit" },
-  "plugins": [{ "name": "path-links", "source": "./" }]
+  "plugins": [
+    { "name": "path-links", "source": "./path-links" },
+    { "name": "speak", "source": "./speak" }
+  ]
 }

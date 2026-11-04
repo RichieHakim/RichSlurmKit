@@ -86,16 +86,18 @@ The installer is non-interactive: it copies `config.example.yaml → config.yaml
 (if missing), adds one `source` line to `~/.bashrc`, and installs a pinned,
 checksum-verified [zmx](https://github.com/neurosnap/zmx) binary for `m`.
 If `claude` is installed, it also installs the
-[path-links mod](#clicking-file-paths) as a Claude Code plugin. Run from a VS
+[path-links](#clicking-file-paths) and [speak](#hearing-replies) mods as
+Claude Code plugins. Run from a VS
 Code terminal, it also installs the
 [claude-paste extension](#pasting-images) there.
 It stops if `envsubst` or PyYAML is missing and can't be installed, and warns
 if `conda` isn't on PATH. It is safe to run again: after a `git pull`, re-run
-it to pick up new steps such as the mod.
+it to pick up new steps such as a new mod.
 
-To uninstall: `./uninstall.sh`, which also removes the mod and the extension.
+To uninstall: `./uninstall.sh`, which also removes the mods and the extension.
 Add `--purge` to also delete `config.yaml`, the zmx and devtunnel binaries,
-the saved VS Code tunnel login, and pasted images.
+Kokoro, the saved VS Code tunnel login, pasted images, and `/speak`'s audio
+files.
 
 ## First-time setup
 
@@ -145,6 +147,7 @@ v                # submit the default preset
 | `m [args...]` | Keep sessions alive; see [Sessions](#sessions-m). |
 | `mc [name]` / `mcr [name]` | New session running `c` / `cr`, auto-named `claude_N`; attaches if it exists. |
 | `c` / `cr` | `claude` with the `claude_flags` from `config.yaml` (`cr` resumes). |
+| `speak [text]` | Read text (or stdin) aloud into an audio file; see [Hearing replies](#hearing-replies). |
 
 `v` and `p` share a CLI:
 
@@ -250,12 +253,32 @@ Links cover absolute and `~/` paths, relative paths with a slash (`lib/`,
 against Claude's working directory. Code blocks, existing links and URLs are
 left alone. Files Claude sends you while Remote Control is on (the
 `› [image] path` lines under its message) get the same links; Claude's own
-`file://` links there open nothing. The tunnel must run on the same node as
+`file://` links there open nothing. So do paths in a slash command's output,
+such as `/speak`'s. The tunnel must run on the same node as
 Claude. Run `/reload-plugins` in open sessions after installing or editing
 the mod.
 
 The mod uses Claude Code's mod API, which is in early access, so a Claude
 Code update can break it. Paths then show as plain text again.
+
+## Hearing replies
+
+`/speak` in Claude reads Claude's last reply aloud: it makes an audio file on
+the node and prints its path. Click the path to open the file in VS Code,
+then press play. Your laptop plays it, since the node has no sound card.
+`/speak some text` reads that text instead, and `speak` does the same from a
+shell. The `speak` mod (`mods/speak`) adds the command, and no Claude turn is
+used.
+
+The voice is [Kokoro](https://github.com/hexgrad/kokoro), run on the CPU.
+Install it with `lib/kokoro_install.sh`. It takes about 800 MB in
+`~/.local/share/richslurmkit/kokoro/`, so `install.sh` doesn't run it. On 8
+cores, a 150-word reply takes about 15 s. Code blocks are skipped, links are
+read as their text, and paths as their last part. Pick a voice with
+`RSK_SPEAK_VOICE` (default `af_heart`; the list is in Kokoro's
+[VOICES.md](https://huggingface.co/hexgrad/Kokoro-82M/blob/main/VOICES.md)),
+and a speed with `RSK_SPEAK_SPEED` (default 1). Files go to
+`~/.cache/rsk-speak/` and are deleted after 7 days.
 
 ## Pasting images
 
@@ -323,6 +346,7 @@ See `config.example.yaml` for the schema and required edits.
 - zmx binary: `~/.local/share/richslurmkit/zmx/<version>/zmx`, linked from `~/.local/bin/zmx`.
   Session sockets and logs: `/tmp/zmx-<uid>/` on each node.
 - Pasted images and the paste log: `~/.cache/claude-paste/` (images kept 7 days)
+- Kokoro, for `/speak`: `~/.local/share/richslurmkit/kokoro/`. Audio files: `~/.cache/rsk-speak/` (kept 7 days)
 - Rendered job templates (per-submit): `/tmp/rsk-*.job` (auto-deleted)
 
 ## License
