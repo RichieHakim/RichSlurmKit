@@ -126,7 +126,7 @@ def zmx_sessions():
     """{name: {key: value}} from `zmx list`; empty if zmx is missing."""
     if not shutil.which("zmx"):
         return {}
-    p = subprocess.run(["zmx", "list"], capture_output=True, text=True)
+    p = subprocess.run(["zmx", "list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)  # py3.6-safe
     out = {}
     for line in p.stdout.splitlines():
         fields = dict(f.split("=", 1) for f in line.strip().split("\t") if "=" in f)
